@@ -1,269 +1,210 @@
-# Obsidian community plugin
+# MSXD All-in-One Plugin — инструкции для агентов
 
-## Project overview
+Документ описывает конкретно этот проект. Правила здесь важнее общих привычек:
+если что-то противоречит «как обычно делают в плагинах Obsidian» — следовать этому файлу.
 
-- Target: Obsidian Community Plugin (TypeScript → bundled JavaScript).
-- Entry point: `src/main.ts` compiled to `main.js` and loaded by Obsidian.
-- Required release artifacts: `main.js`, `manifest.json`, and optional `styles.css`.
+## 1. Что это за плагин
 
-## Environment & tooling
+Плагин Obsidian, который связывает **Telegram-бота** с хранилищем заметок (vault).
+Две основные роли:
 
-- Node.js: use current LTS (Node 18+ recommended).
-- **Package manager: npm** (required for this sample - `package.json` defines npm scripts and dependencies).
-- **Bundler: esbuild** (required for this sample - `esbuild.config.mjs` and build scripts depend on it). Alternative bundlers like Rollup or webpack are acceptable for other projects if they bundle all external dependencies into `main.js`.
-- Types: `obsidian` type definitions.
+- **Входящие.** Бот принимает сообщения от пользователя и раскладывает их по заметкам
+  в соответствии с настраиваемыми правилами.
+- **Исходящие.** По команде в боте или по расписанию плагин отправляет пользователю
+  определённые заметки.
 
-**Note**: This sample project has specific technical dependencies on npm and esbuild. If you're creating a plugin from scratch, you can choose different tools, but you'll need to replace the build configuration accordingly.
+Плагин персональный: один пользователь — один бот — один vault. Многопользовательских
+сценариев, серверной части и внешних сервисов, кроме Bot API Telegram, не предполагается.
 
-### Install
+## 2. Текущее состояние
 
-```bash
-npm install
+Реализовано:
+
+- `src/settings.ts` — модель настроек, значения по умолчанию, `mergeSettings()`.
+- `src/telegram/api.ts` — вызов `getMe`, проверка формата токена, вычистка токена из текстов ошибок.
+- `src/ui/settings-tab.ts` — вкладка настроек: поле токена (маскированное), кнопка показа,
+  кнопка **Check token**, строка статуса под полем.
+- `src/main.ts` — только жизненный цикл: загрузка настроек и регистрация вкладки.
+
+Ещё **не** реализовано (не описывать это как работающее и не полагаться на это в коде):
+
+- приём сообщений (long polling или webhook);
+- правила маршрутизации входящих сообщений в заметки;
+- расписание и исходящие отправки;
+- проверка того, *кто* пишет боту (нужен allowlist по chat id);
+- автотесты — инфраструктуры тестов в проекте пока нет.
+
+Хвосты от шаблона sample-plugin: `README.md` всё ещё описывает пример, `versions.json`
+содержит `"1.0.0": "1.0.0"`, хотя `minAppVersion` в манифесте — `1.11.0`.
+
+## 3. Порядок работ
+
+Итерации идут по одной, следующую начинать только по явному запросу — не забегать вперёд:
+
+1. **Токен бота** — ввод, проверка, сохранение. *(сделано)*
+2. **Привязка пользователя** — определение своего chat id, allowlist разрешённых отправителей.
+3. **Приём сообщений** — long polling с сохранением `offset`, переживающий перезагрузку плагина.
+4. **Маршрутизация** — правила «сообщение → целевая заметка», настройка в UI.
+5. **Исходящие** — команды бота и отправка по расписанию.
+
+## 4. Структура и границы модулей
+
+```
+src/
+  main.ts              # только lifecycle: onload/onunload, регистрация вкладок и команд
+  settings.ts          # интерфейсы настроек, DEFAULT_SETTINGS, mergeSettings
+  telegram/
+    api.ts             # HTTP-вызовы Bot API и их типы
+  ui/
+    settings-tab.ts    # вкладка настроек
 ```
 
-### Dev (watch)
+Правила:
+
+- **Все сетевые вызовы живут в `src/telegram/`.** UI и доменный код обращаются к Telegram
+  только через экспортируемые оттуда функции, а не через `requestUrl` напрямую.
+- `src/telegram/` не знает ни про UI, ни про объект плагина: на вход — примитивы,
+  на выход — типизированный результат или `TelegramApiError`.
+- `main.ts` держать минимальным. Появилась логика — это новый модуль, а не ещё один метод плагина.
+- Связь `ui → main` только через `import type` (иначе получится циклический рантайм-импорт).
+- Файл разросся до ~200–300 строк — делить по ответственности.
+
+## 5. Работа с Telegram
+
+- **Только `requestUrl` из `obsidian`.** Не `fetch`, не `axios`, не node-модули: `requestUrl`
+  обходит CORS и одинаково работает на десктопе и на мобильных.
+- **Без сторонних Telegram-библиотек** (grammY, telegraf и подобные): они тянут Node API
+  и вес в бандл. Работаем с HTTP Bot API напрямую.
+- Запрос делать с `throw: false` и разбирать `response.text` вручную — иначе не прочитать
+  тело ошибки Telegram (401, 404, 429 приходят с осмысленным `description`).
+- **Токен не должен попадать ни в `Notice`, ни в консоль, ни в лог.** Он входит в URL запроса,
+  поэтому текст любой пойманной ошибки пропускать через `redactToken()` перед показом.
+- Ошибки Telegram превращать в `TelegramApiError` с сообщением, которое не стыдно показать
+  пользователю: на английском, sentence case, с подсказкой что делать.
+- Ответ Bot API не типизирован — проверять форму через type guard, а не приводить типы.
+- 429: уважать `retry_after`, не устраивать повторы в цикле.
+- Когда дойдёт до long polling: `getUpdates` с `offset`, таймаутом, и обязательной остановкой
+  в `onunload` — иначе после перезагрузки плагина останется висящий запрос.
+
+## 6. Настройки
+
+- Настройки секционные: `settings.telegram.*`, дальше появятся `settings.inbox`, `settings.schedule`.
+- `Object.assign` сливает объекты **поверхностно**, поэтому для вложенных секций он не годится:
+  расширять `mergeSettings()` при добавлении каждой новой секции, иначе старый `data.json`
+  не получит значения по умолчанию для новых полей.
+- **Автосохранение по `onChange`** — идиома Obsidian. Отдельных кнопок «Save» не делать;
+  кнопка появляется только под действие (например, проверку токена).
+- Производные закешированные значения (`botUsername`) сбрасывать при изменении источника (токена),
+  чтобы в UI не осталось данных от прошлого бота.
+- `display()` перерисовывает вкладку целиком, поэтому точечные обновления (строка статуса)
+  делать через сохранённую ссылку на элемент, а не повторным `display()` — иначе теряется фокус ввода.
+
+## 7. Секреты
+
+- Токен хранится в `<Vault>/.obsidian/plugins/<id>/data.json` **открытым текстом**: Obsidian
+  не предоставляет шифрованного хранилища. Это нужно честно писать в описании настройки и в README.
+- `data.json` в `.gitignore` — не коммитить и не выводить его содержимое в ответах.
+- Поле токена в UI — `type="password"` с явной кнопкой показа.
+- Не логировать тела запросов и ответов Telegram без вычистки токена.
+
+## 8. UI и тексты
+
+- Строки интерфейса — **на английском, sentence case** («Bot token», «Check token»).
+  Правило `ui/sentence-case` в ESLint это проверяет. Общение с пользователем в чате — на русском,
+  но в код русский текст не попадает.
+- Заголовки групп — через `SettingGroup.setHeading()` (доступно с Obsidian 1.11), не руками `<h2>`.
+- Не делать в начале вкладки заголовок вида «General» или с названием плагина.
+- **Никаких inline-стилей** (`el.style.*` запрещён правилом `no-static-styles-assignment`):
+  классы в `styles.css` с префиксом `msxd-`, цвета — из переменных темы
+  (`--text-muted`, `--text-error`, `--text-success`, `--size-2-2`).
+- DOM собирать через `createDiv` / `createEl` / `createFragment`, не через `innerHTML`.
+- Долгая операция — блокировать кнопку, показывать статус в UI и дублировать результат `Notice`.
+
+## 9. Окружение и сборка
+
+**Репозиторий лежит внутри рабочего vault:** `<Vault>/.obsidian/plugins/msxd-lifestyle-plugin`.
+Сборка пишет `main.js` сразу туда, копировать артефакты никуда не нужно.
+
+**Кросс-платформенная особенность:** `node_modules` ставились из-под Windows, а агенты работают
+в WSL (linux). `tsc` и `eslint` работают в обеих средах, а `esbuild` — нативный бинарник:
+
+- для сборки из WSL нужен `@esbuild/linux-x64`, для сборки из Windows/IntelliJ — `@esbuild/win32-x64`;
+- сейчас в `node_modules` лежат **обе** платформы, ничего доустанавливать не требуется;
+- если платформенный пакет всё-таки пропал, ставить его как
+  `npm install --no-save --force @esbuild/<платформа>@<версия из package.json>` —
+  `--no-save` не трогает `package.json` и `package-lock.json`, а обычный `npm install`
+  удаляет пакет чужой платформы и ломает сборку на другой стороне.
+
+Команды:
 
 ```bash
-npm run dev
+npm run dev     # esbuild в watch-режиме, main.js с inline sourcemap
+npm run build   # tsc -noEmit + продакшен-сборка (минифицированная)
+npm run lint    # eslint (включая правила eslint-plugin-obsidianmd)
 ```
 
-### Production build
+Перед тем как считать задачу сделанной: `npm run lint && npm run build` — оба без ошибок.
 
-```bash
-npm run build
-```
+Проверка в Obsidian: после сборки перезагрузить плагин (**Settings → Community plugins**,
+выключить и включить) или выполнить команду **Reload app without saving**. Чтобы увидеть
+изменения во вкладке настроек, её нужно закрыть и открыть заново.
 
-## Linting
+## 10. Идентификаторы: несоответствие, которое надо решить
 
-- ESLint is preconfigured with `eslint-plugin-obsidianmd` for Obsidian-specific rules.
-- Run `npm run lint` to lint the project.
-- A GitHub Action automatically lints every commit on all branches.
+| Где | Значение |
+| --- | --- |
+| Папка плагина | `msxd-lifestyle-plugin` |
+| `manifest.json` → `id` | `msxd-all-in-one-plugin` |
+| `manifest.json` → `name` | `MSXD All-in-One Plugin` |
+| `package.json` → `name` | `msxd-all-in-one-plugin` |
+| Класс плагина | `MSXDAllInOnePlugin` |
 
-## File & folder conventions
+Obsidian ожидает, что имя папки совпадает с `id`. Привести к одному значению нужно **до**
+первого релиза: после публикации `id` менять нельзя. Агентам: самовольно не переименовывать,
+спросить, какое имя считать основным.
 
-- **Organize code into multiple files**: Split functionality across separate modules rather than putting everything in `main.ts`.
-- Source lives in `src/`. Keep `main.ts` small and focused on plugin lifecycle (loading, unloading, registering commands).
-- **Example file structure**:
-    ```
-    src/
-      main.ts           # Plugin entry point, lifecycle management
-      settings.ts       # Settings interface and defaults
-      commands/         # Command implementations
-        command1.ts
-        command2.ts
-      ui/              # UI components, modals, views
-        modal.ts
-        view.ts
-      utils/           # Utility functions, helpers
-        helpers.ts
-        constants.ts
-      types.ts         # TypeScript interfaces and types
-    ```
-- **Do not commit build artifacts**: Never commit `node_modules/`, `main.js`, or other generated files to version control.
-- Keep the plugin small. Avoid large dependencies. Prefer browser-compatible packages.
-- Generated output should be placed at the plugin root or `dist/` depending on your build setup. Release artifacts must end up at the top level of the plugin folder in the vault (`main.js`, `manifest.json`, `styles.css`).
+## 11. Конвенции кода
 
-## Manifest rules (`manifest.json`)
+- TypeScript strict; включён `noUncheckedIndexedAccess` — индексный доступ даёт `| undefined`.
+- Форматирование по `.editorconfig`: табы, LF, UTF-8, одинарные кавычки, завершающий перевод строки.
+- `isolatedModules` включён — импорты только типов помечать `import type`.
+- Именование: классы плагина — `MSXD*`, типы настроек — `Msxd*` (исторически сложилось,
+  без причины не переименовывать).
+- `async`/`await` вместо цепочек промисов; ошибки не глотать молча — либо показать пользователю,
+  либо пробросить.
+- Всё, что требует очистки (события, интервалы, DOM-слушатели), регистрировать через
+  `this.registerEvent` / `this.registerInterval` / `this.registerDomEvent`, чтобы выгрузка
+  плагина не оставляла хвостов.
+- Комментарии пишем по-английски и только там, где код не объясняет себя сам.
 
-- Must include (non-exhaustive):
-    - `id` (plugin ID; for local dev it should match the folder name)
-    - `name`
-    - `version` (Semantic Versioning `x.y.z`)
-    - `minAppVersion`
-    - `description`
-    - `isDesktopOnly` (boolean)
-    - Optional: `author`, `authorUrl`, `fundingUrl` (string or map)
-- Never change `id` after release. Treat it as stable API.
-- Keep `minAppVersion` accurate when using newer APIs.
-- Canonical requirements are coded here: https://github.com/obsidianmd/obsidian-releases/blob/master/.github/workflows/validate-plugin-entry.yml
-
-## Testing
-
-- Manual install for testing: copy `main.js`, `manifest.json`, `styles.css` (if any) to:
-    ```
-    <Vault>/.obsidian/plugins/<plugin-id>/
-    ```
-- Reload Obsidian and enable the plugin in **Settings → Community plugins**.
-
-## Commands & settings
-
-- Any user-facing commands should be added via `this.addCommand(...)`.
-- If the plugin has configuration, provide a settings tab and sensible defaults.
-- Persist settings using `this.loadData()` / `this.saveData()`.
-- Use stable command IDs; avoid renaming once released.
-
-## Versioning & releases
-
-- Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version.
-- Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`.
-- Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets.
-- After the initial release, follow the process to add/update your plugin in the community catalog as required.
-
-## Security, privacy, and compliance
-
-Follow Obsidian's **Developer Policies** and **Plugin Guidelines**. In particular:
-
-- Default to local/offline operation. Only make network requests when essential to the feature.
-- No hidden telemetry. If you collect optional analytics or call third-party services, require explicit opt-in and document clearly in `README.md` and in settings.
-- Never execute remote code, fetch and eval scripts, or auto-update plugin code outside of normal releases.
-- Minimize scope: read/write only what's necessary inside the vault. Do not access files outside the vault.
-- Clearly disclose any external services used, data sent, and risks.
-- Respect user privacy. Do not collect vault contents, filenames, or personal information unless absolutely necessary and explicitly consented.
-- Avoid deceptive patterns, ads, or spammy notifications.
-- Register and clean up all DOM, app, and interval listeners using the provided `register*` helpers so the plugin unloads safely.
-
-## UX & copy guidelines (for UI text, commands, settings)
-
-- Prefer sentence case for headings, buttons, and titles.
-- Use clear, action-oriented imperatives in step-by-step copy.
-- Use **bold** to indicate literal UI labels. Prefer "select" for interactions.
-- Use arrow notation for navigation: **Settings → Community plugins**.
-- Keep in-app strings short, consistent, and free of jargon.
-
-## Performance
-
-- Keep startup light. Defer heavy work until needed.
-- Avoid long-running tasks during `onload`; use lazy initialization.
-- Batch disk access and avoid excessive vault scans.
-- Debounce/throttle expensive operations in response to file system events.
-
-## Coding conventions
-
-- TypeScript with `"strict": true` preferred.
-- **Keep `main.ts` minimal**: Focus only on plugin lifecycle (onload, onunload, addCommand calls). Delegate all feature logic to separate modules.
-- **Split large files**: If any file exceeds ~200-300 lines, consider breaking it into smaller, focused modules.
-- **Use clear module boundaries**: Each file should have a single, well-defined responsibility.
-- Bundle everything into `main.js` (no unbundled runtime deps).
-- Avoid Node/Electron APIs if you want mobile compatibility; set `isDesktopOnly` accordingly.
-- Prefer `async/await` over promise chains; handle errors gracefully.
-
-## Mobile
-
-- Where feasible, test on iOS and Android.
-- Don't assume desktop-only behavior unless `isDesktopOnly` is `true`.
-- Avoid large in-memory structures; be mindful of memory and storage constraints.
-
-## Agent do/don't
+## 12. Do / Don't
 
 **Do**
 
-- Add commands with stable IDs (don't rename once released).
-- Provide defaults and validation in settings.
-- Write idempotent code paths so reload/unload doesn't leak listeners or intervals.
-- Use `this.register*` helpers for everything that needs cleanup.
+- Валидировать пользовательский ввод локально, прежде чем идти в сеть.
+- Сообщения об ошибках делать конкретными: что пошло не так и что с этим делать.
+- Оставлять плагин работоспособным при пустых настройках (нет токена — ничего не падает).
+- Давать командам стабильные `id` и не переименовывать их после релиза.
 
 **Don't**
 
-- Introduce network calls without an obvious user-facing reason and documentation.
-- Ship features that require cloud services without clear disclosure and explicit opt-in.
-- Store or transmit vault contents unless essential and consented.
+- Не добавлять сетевые вызовы к чему-либо, кроме `api.telegram.org`.
+- Не отправлять во внешний мир содержимое заметок, кроме того, что пользователь явно
+  запросил через бота.
+- Не выполнять удалённый код и не подтягивать скрипты в рантайме.
+- Не трогать файлы за пределами vault.
+- Не коммитить `main.js`, `data.json`, `node_modules`.
 
-## Common tasks
+## 13. Политики Obsidian
 
-### Organize code across multiple files
+Плагин должен соответствовать Developer Policies и Plugin Guidelines: работа по умолчанию
+локальная, сетевые обращения — только ради заявленной функции и с описанием в README,
+никакой скрытой телеметрии, аккуратная выгрузка без утечек слушателей.
 
-**main.ts** (minimal, lifecycle only):
+## 14. Ссылки
 
-```ts
-import { Plugin } from 'obsidian';
-import { MySettings, DEFAULT_SETTINGS } from './settings';
-import { registerCommands } from './commands';
-
-export default class MyPlugin extends Plugin {
-	settings!: MySettings;
-
-	async onload() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MySettings>,
-		);
-		registerCommands(this);
-	}
-}
-```
-
-**settings.ts**:
-
-```ts
-export interface MySettings {
-	enabled: boolean;
-	apiKey: string;
-}
-
-export const DEFAULT_SETTINGS: MySettings = {
-	enabled: true,
-	apiKey: '',
-};
-```
-
-**commands/index.ts**:
-
-```ts
-import { Plugin } from 'obsidian';
-import { doSomething } from './my-command';
-
-export function registerCommands(plugin: Plugin) {
-	plugin.addCommand({
-		id: 'do-something',
-		name: 'Do something',
-		callback: () => doSomething(plugin),
-	});
-}
-```
-
-### Add a command
-
-```ts
-this.addCommand({
-	id: 'your-command-id',
-	name: 'Do the thing',
-	callback: () => this.doTheThing(),
-});
-```
-
-### Persist settings
-
-```ts
-interface MySettings { enabled: boolean }
-const DEFAULT_SETTINGS: MySettings = { enabled: true };
-
-async onload() {
-  this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MySettings>);
-  await this.saveData(this.settings);
-}
-```
-
-### Register listeners safely
-
-```ts
-this.registerEvent(
-	this.app.workspace.on('file-open', (f) => {
-		/* ... */
-	}),
-);
-this.registerDomEvent(activeWindow, 'resize', () => {
-	/* ... */
-});
-this.registerInterval(
-	window.setInterval(() => {
-		/* ... */
-	}, 1000),
-);
-```
-
-## Troubleshooting
-
-- Plugin doesn't load after build: ensure `main.js` and `manifest.json` are at the top level of the plugin folder under `<Vault>/.obsidian/plugins/<plugin-id>/`.
-- Build issues: if `main.js` is missing, run `npm run build` or `npm run dev` to compile your TypeScript source code.
-- Commands not appearing: verify `addCommand` runs after `onload` and IDs are unique.
-- Settings not persisting: ensure `loadData`/`saveData` are awaited and you re-render the UI after changes.
-- Mobile-only issues: confirm you're not using desktop-only APIs; check `isDesktopOnly` and adjust.
-
-## References
-
-- Obsidian sample plugin: https://github.com/obsidianmd/obsidian-sample-plugin
-- API documentation: https://docs.obsidian.md
+- API-документация: https://docs.obsidian.md
+- Telegram Bot API: https://core.telegram.org/bots/api
 - Developer policies: https://docs.obsidian.md/Developer+policies
 - Plugin guidelines: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines
-- Style guide: https://help.obsidian.md/style-guide
+- Style guide (тексты интерфейса): https://help.obsidian.md/style-guide
