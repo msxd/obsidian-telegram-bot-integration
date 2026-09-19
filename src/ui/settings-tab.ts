@@ -1,6 +1,7 @@
 import { App, PluginSettingTab } from 'obsidian';
 import type MSXDAllInOnePlugin from '../main';
 import { AllowedChatsSection } from './allowed-chats-section';
+import { InboxSection } from './inbox-section';
 import { SettingsSection } from './section';
 import { TokenSection } from './token-section';
 
@@ -12,6 +13,7 @@ export class MSXDPluginSettingTab extends PluginSettingTab {
 		this.sections = [
 			new TokenSection(plugin),
 			new AllowedChatsSection(plugin),
+			new InboxSection(plugin),
 		];
 	}
 

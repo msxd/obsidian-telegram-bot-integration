@@ -10,3 +10,61 @@
 .msxd-status.is-error {
 	color: var(--text-error);
 }
+
+.msxd-rule-path {
+	font-family: var(--font-monospace);
+	word-break: break-all;
+}
+
+.msxd-rule-modal .setting-item-control {
+	flex-grow: 1;
+}
+
+.msxd-rule-modal .setting-item-control input[type='text'] {
+	width: 100%;
+	font-family: var(--font-monospace);
+}
+
+/* Template fields hold long strings, so they get the full width of the row. */
+.msxd-template-setting .setting-item-control {
+	flex-grow: 1;
+}
+
+.msxd-template-input {
+	width: 100%;
+	min-height: 4.5em;
+	resize: vertical;
+	font-family: var(--font-monospace);
+}
+
+.msxd-preview {
+	margin: var(--size-4-3) 0;
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.msxd-preview-title {
+	font-weight: var(--font-semibold);
+}
+
+.msxd-preview-path {
+	margin-top: var(--size-2-2);
+	font-family: var(--font-monospace);
+	word-break: break-all;
+}
+
+.msxd-help {
+	margin-bottom: var(--size-4-2);
+	color: var(--text-muted);
+}
+
+.msxd-help-title {
+	margin-top: var(--size-2-3);
+	font-weight: var(--font-semibold);
+}
+
+.msxd-help ul {
+	margin: var(--size-2-1) 0;
+	padding-left: var(--size-4-5);
+}

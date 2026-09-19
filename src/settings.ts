@@ -1,5 +1,10 @@
 import { ChatRef, isChatType } from './telegram/types';
 
+export const DEFAULT_INBOX_FOLDER = '_tg_inbox_';
+export const DEFAULT_HEADING = '## {{messageTime:HH:mm}}';
+export const DEFAULT_NOTE_NAME =
+	'{{messageDate:YYYY-MM-DD}} {{messageTime:HHmmss}}';
+
 export interface TelegramSettings {
 	/** Bot token from @BotFather. Stored as plain text in the plugin's data.json. */
 	botToken: string;
@@ -9,8 +14,32 @@ export interface TelegramSettings {
 	allowedChats: ChatRef[];
 }
 
+/** One routing rule: which messages it claims, and where they go. */
+export interface MessageRule {
+	/** Stable id so the settings UI can reorder and remove rules. */
+	id: string;
+	/** `{{all}}`, `{{content~text}}` or `{{hashtag~tag}}`. */
+	filter: string;
+	/** Path template. Ending in `.md` means a note, anything else means a folder. */
+	path: string;
+	/** Template for the heading written before the message body. */
+	heading: string;
+}
+
+export interface InboxSettings {
+	/** Where messages go when no rule claims them. */
+	folder: string;
+	/** Note name template used whenever a path points at a folder. */
+	noteNameTemplate: string;
+	/** Heading for messages that fall through to the inbox. */
+	defaultHeading: string;
+	/** Order is priority: the first matching rule wins. */
+	rules: MessageRule[];
+}
+
 export interface MsxdPluginSettings {
 	telegram: TelegramSettings;
+	inbox: InboxSettings;
 }
 
 export const DEFAULT_SETTINGS: MsxdPluginSettings = {
@@ -18,6 +47,12 @@ export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 		botToken: '',
 		botUsername: '',
 		allowedChats: [],
+	},
+	inbox: {
+		folder: DEFAULT_INBOX_FOLDER,
+		noteNameTemplate: DEFAULT_NOTE_NAME,
+		defaultHeading: DEFAULT_HEADING,
+		rules: [],
 	},
 };
 
@@ -28,10 +63,20 @@ export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 export function mergeSettings(data: unknown): MsxdPluginSettings {
 	const stored = (data ?? {}) as Partial<MsxdPluginSettings>;
 	const telegram = { ...DEFAULT_SETTINGS.telegram, ...stored.telegram };
+	const inbox = { ...DEFAULT_SETTINGS.inbox, ...stored.inbox };
 	return {
 		telegram: {
 			...telegram,
 			allowedChats: sanitizeChats(telegram.allowedChats),
+		},
+		inbox: {
+			folder: asString(inbox.folder, DEFAULT_INBOX_FOLDER),
+			noteNameTemplate: asString(
+				inbox.noteNameTemplate,
+				DEFAULT_NOTE_NAME,
+			),
+			defaultHeading: asString(inbox.defaultHeading, DEFAULT_HEADING),
+			rules: sanitizeRules(inbox.rules),
 		},
 	};
 }
@@ -47,6 +92,20 @@ export function isChatAllowed(
 	chatId: number,
 ): boolean {
 	return settings.telegram.allowedChats.some((chat) => chat.id === chatId);
+}
+
+export function createRule(): MessageRule {
+	return {
+		id: createRuleId(),
+		filter: '{{all}}',
+		path: DEFAULT_INBOX_FOLDER,
+		heading: DEFAULT_HEADING,
+	};
+}
+
+function createRuleId(): string {
+	const random = Math.random().toString(36).slice(2, 8);
+	return `${Date.now().toString(36)}-${random}`;
 }
 
 /** data.json is user editable, so drop anything that is not a usable entry. */
@@ -73,4 +132,32 @@ function sanitizeChats(value: unknown): ChatRef[] {
 		});
 	}
 	return chats;
+}
+
+function sanitizeRules(value: unknown): MessageRule[] {
+	if (!Array.isArray(value)) return [];
+	const rules: MessageRule[] = [];
+	const seen = new Set<string>();
+	for (const entry of value) {
+		if (typeof entry !== 'object' || entry === null) continue;
+		const rule = entry as Partial<MessageRule>;
+		const id =
+			typeof rule.id === 'string' &&
+			rule.id.length > 0 &&
+			!seen.has(rule.id)
+				? rule.id
+				: createRuleId();
+		seen.add(id);
+		rules.push({
+			id,
+			filter: asString(rule.filter, ''),
+			path: asString(rule.path, ''),
+			heading: asString(rule.heading, ''),
+		});
+	}
+	return rules;
+}
+
+function asString(value: unknown, fallback: string): string {
+	return typeof value === 'string' ? value : fallback;
 }
