@@ -1,6 +1,7 @@
 import { SettingGroup } from 'obsidian';
 import type MSXDAllInOnePlugin from '../main';
 import { IntakeStatus } from '../intake/service';
+import { ALLOWED_REACTIONS } from '../telegram/reactions';
 import { replaceGroups, SettingsSection } from './section';
 
 export class IntakeSection implements SettingsSection {
@@ -49,6 +50,25 @@ export class IntakeSection implements SettingsSection {
 							.setValue(this.plugin.settings.intake.enabled)
 							.onChange((value) => {
 								void this.setEnabled(value);
+							});
+					});
+			})
+			.addSetting((setting) => {
+				setting
+					.setName('Reaction')
+					.setDesc(
+						'Emoji the bot puts on a message once it has been saved, so the chat shows what got through. Telegram allows only this set.',
+					)
+					.addDropdown((dropdown) => {
+						dropdown.addOption('', 'None');
+						for (const emoji of ALLOWED_REACTIONS) {
+							dropdown.addOption(emoji, emoji);
+						}
+						dropdown
+							.setValue(this.plugin.settings.intake.reaction)
+							.onChange((value) => {
+								this.plugin.settings.intake.reaction = value;
+								void this.plugin.saveSettings();
 							});
 					});
 			});

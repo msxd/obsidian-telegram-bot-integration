@@ -1,3 +1,4 @@
+import { isAllowedReaction } from './telegram/reactions';
 import { ChatRef, isChatType } from './telegram/types';
 
 export const DEFAULT_INBOX_FOLDER = '_tg_inbox_';
@@ -52,6 +53,11 @@ export interface IntakeSettings {
 	 * what was already saved nor skips what was not.
 	 */
 	offset: number;
+	/**
+	 * Emoji the bot reacts with once a message has been saved. Empty means no
+	 * reaction. Must be one Telegram allows, so a hand-edited value is dropped.
+	 */
+	reaction: string;
 }
 
 export interface MsxdPluginSettings {
@@ -77,6 +83,7 @@ export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 	intake: {
 		enabled: false,
 		offset: 0,
+		reaction: '',
 	},
 };
 
@@ -111,6 +118,11 @@ export function mergeSettings(data: unknown): MsxdPluginSettings {
 				typeof intake.offset === 'number' && intake.offset > 0
 					? Math.floor(intake.offset)
 					: 0,
+			reaction:
+				typeof intake.reaction === 'string' &&
+				isAllowedReaction(intake.reaction)
+					? intake.reaction
+					: '',
 		},
 	};
 }

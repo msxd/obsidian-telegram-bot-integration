@@ -103,6 +103,28 @@ export async function getRecentChats(token: string): Promise<ChatRef[]> {
 }
 
 /**
+ * Marks a message as taken by reacting to it.
+ *
+ * Telegram only accepts emoji from its own fixed set, and only where the bot is
+ * allowed to react, so this can fail for reasons that say nothing about the
+ * message having been saved.
+ *
+ * @throws {TelegramApiError} when Telegram refuses the reaction.
+ */
+export async function setMessageReaction(
+	token: string,
+	chatId: number,
+	messageId: number,
+	emoji: string,
+): Promise<void> {
+	await call(token, 'setMessageReaction', {
+		chat_id: chatId,
+		message_id: messageId,
+		reaction: [{ type: 'emoji', emoji }],
+	});
+}
+
+/**
  * Resolves a file id to a download path.
  *
  * @throws {TelegramApiError} when Telegram refuses, which includes files over

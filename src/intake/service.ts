@@ -10,6 +10,7 @@ import {
 	getFilePath,
 	getUpdates,
 	redactToken,
+	setMessageReaction,
 	TelegramApiError,
 } from '../telegram/api';
 import { ChatRef } from '../telegram/types';
@@ -50,6 +51,8 @@ export class IntakeService {
 	private lastPath = '';
 	private pendingTimeout: number | null = null;
 	private pendingResolve: (() => void) | null = null;
+	/** Reactions can be refused for every message alike; warn once, not per message. */
+	private reactionWarned = false;
 
 	constructor(plugin: MSXDAllInOnePlugin) {
 		this.plugin = plugin;
@@ -90,6 +93,7 @@ export class IntakeService {
 	start(): void {
 		if (this.running) return;
 		this.running = true;
+		this.reactionWarned = false;
 		const generation = ++this.generation;
 		this.setStatus({ kind: 'listening' });
 		void this.loop(generation);
@@ -173,6 +177,7 @@ export class IntakeService {
 			});
 			this.filed++;
 			this.lastPath = target.path;
+			await this.react(message);
 		} catch (error) {
 			// One unwritable path must not stop the queue.
 			new Notice(`Could not save a message to ${target.path}`);
@@ -222,6 +227,39 @@ export class IntakeService {
 			}
 		}
 		return links;
+	}
+
+	/**
+	 * Marks a saved message as taken, when a reaction is configured.
+	 *
+	 * Failing to react is not failing to save: Telegram refuses reactions where
+	 * the bot lacks the right, and that refusal repeats for every message, so it
+	 * is reported once per listening session.
+	 */
+	private async react(message: IncomingMessage): Promise<void> {
+		const emoji = this.plugin.settings.intake.reaction;
+		if (emoji.length === 0) return;
+
+		const token = this.plugin.settings.telegram.botToken;
+		try {
+			await setMessageReaction(
+				token,
+				message.chat.id,
+				message.messageId,
+				emoji,
+			);
+		} catch (error) {
+			if (!this.reactionWarned) {
+				this.reactionWarned = true;
+				new Notice(
+					`Saved the message, but could not react to it: ${describeError(error, token)}`,
+				);
+			}
+			console.error(
+				'MSXD plugin: reacting to a message failed',
+				redactToken(String(error), token),
+			);
+		}
 	}
 
 	private rememberChat(chat: ChatRef): void {
