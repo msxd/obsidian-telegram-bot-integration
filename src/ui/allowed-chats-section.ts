@@ -2,7 +2,7 @@ import { Notice, SettingGroup } from 'obsidian';
 import type MSXDAllInOnePlugin from '../main';
 import { getRecentChats, redactToken, TelegramApiError } from '../telegram/api';
 import { ChatRef, ChatType } from '../telegram/types';
-import { SettingsSection } from './section';
+import { replaceGroups, SettingsSection } from './section';
 
 type LookupStatus =
 	| { kind: 'idle' }
@@ -45,29 +45,14 @@ export class AllowedChatsSection implements SettingsSection {
 	/**
 	 * Redraws both groups from state. There is no text input here, so a full
 	 * redraw costs nothing and keeps the buttons in sync with what is allowed.
-	 *
-	 * The groups are built detached and then swapped in as direct children of
-	 * the tab. Obsidian spaces setting groups by their position among siblings,
-	 * so keeping them inside a wrapper element would leave the first group
-	 * without its top margin.
 	 */
 	private renderSection(): void {
 		const parent = this.parentEl;
 		if (!parent) return;
-
-		const staging = createDiv();
-		this.renderAllowed(staging);
-		this.renderCandidates(staging);
-
-		const replacement = Array.from(staging.children);
-		const anchor = this.groupEls[0] ?? null;
-		for (const el of replacement) {
-			parent.insertBefore(el, anchor);
-		}
-		for (const el of this.groupEls) {
-			el.detach();
-		}
-		this.groupEls = replacement;
+		this.groupEls = replaceGroups(parent, this.groupEls, (containerEl) => {
+			this.renderAllowed(containerEl);
+			this.renderCandidates(containerEl);
+		});
 	}
 
 	private renderAllowed(containerEl: HTMLElement): void {
