@@ -1,38 +1,28 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
-import MyPlugin from './main';
-
-export interface MyPluginSettings {
-	mySetting: string;
+export interface TelegramSettings {
+	/** Bot token from @BotFather. Stored as plain text in the plugin's data.json. */
+	botToken: string;
+	/** Username of the bot from the last successful token check, without the `@`. */
+	botUsername: string;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default',
+export interface MsxdPluginSettings {
+	telegram: TelegramSettings;
+}
+
+export const DEFAULT_SETTINGS: MsxdPluginSettings = {
+	telegram: {
+		botToken: '',
+		botUsername: '',
+	},
 };
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const { containerEl } = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc("It's a secret")
-			.addText((text) =>
-				text
-					.setPlaceholder('Enter your secret')
-					.setValue(this.plugin.settings.mySetting)
-					.onChange(async (value) => {
-						this.plugin.settings.mySetting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-	}
+/**
+ * Merges stored data with the defaults one section at a time, so a section
+ * saved before a new field existed still gets that field's default.
+ */
+export function mergeSettings(data: unknown): MsxdPluginSettings {
+	const stored = (data ?? {}) as Partial<MsxdPluginSettings>;
+	return {
+		telegram: { ...DEFAULT_SETTINGS.telegram, ...stored.telegram },
+	};
 }

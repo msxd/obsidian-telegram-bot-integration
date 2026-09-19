@@ -1,8 +1,12 @@
-/*
+.msxd-token-status {
+	margin-top: var(--size-2-2);
+	color: var(--text-muted);
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.msxd-token-status.is-ok {
+	color: var(--text-success);
+}
 
-If your plugin does not need CSS, delete this file.
-
-*/
+.msxd-token-status.is-error {
+	color: var(--text-error);
+}
