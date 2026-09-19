@@ -1,6 +1,7 @@
 import { ChatRef, isChatType } from './telegram/types';
 
 export const DEFAULT_INBOX_FOLDER = '_tg_inbox_';
+export const DEFAULT_MEDIA_FOLDER = '_tg_inbox_/media';
 export const DEFAULT_HEADING = '## {{messageTime:HH:mm}}';
 export const DEFAULT_NOTE_NAME =
 	'{{messageDate:YYYY-MM-DD}} {{messageTime:HHmmss}}';
@@ -22,6 +23,8 @@ export interface MessageRule {
 	filter: string;
 	/** Path template. Ending in `.md` means a note, anything else means a folder. */
 	path: string;
+	/** Folder template for attachments. Empty falls back to the inbox media folder. */
+	mediaPath: string;
 	/** Template for the heading written before the message body. */
 	heading: string;
 }
@@ -33,13 +36,28 @@ export interface InboxSettings {
 	noteNameTemplate: string;
 	/** Heading for messages that fall through to the inbox. */
 	defaultHeading: string;
+	/** Put a horizontal rule before each message appended to an existing note. */
+	separateMessages: boolean;
+	/** Where attachments go when a rule does not say otherwise. */
+	mediaFolder: string;
 	/** Order is priority: the first matching rule wins. */
 	rules: MessageRule[];
+}
+
+export interface IntakeSettings {
+	/** Whether the plugin is listening for messages. */
+	enabled: boolean;
+	/**
+	 * Next update id to ask Telegram for. Persisted so a reload neither refiles
+	 * what was already saved nor skips what was not.
+	 */
+	offset: number;
 }
 
 export interface MsxdPluginSettings {
 	telegram: TelegramSettings;
 	inbox: InboxSettings;
+	intake: IntakeSettings;
 }
 
 export const DEFAULT_SETTINGS: MsxdPluginSettings = {
@@ -52,7 +70,13 @@ export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 		folder: DEFAULT_INBOX_FOLDER,
 		noteNameTemplate: DEFAULT_NOTE_NAME,
 		defaultHeading: DEFAULT_HEADING,
+		separateMessages: false,
+		mediaFolder: DEFAULT_MEDIA_FOLDER,
 		rules: [],
+	},
+	intake: {
+		enabled: false,
+		offset: 0,
 	},
 };
 
@@ -64,6 +88,7 @@ export function mergeSettings(data: unknown): MsxdPluginSettings {
 	const stored = (data ?? {}) as Partial<MsxdPluginSettings>;
 	const telegram = { ...DEFAULT_SETTINGS.telegram, ...stored.telegram };
 	const inbox = { ...DEFAULT_SETTINGS.inbox, ...stored.inbox };
+	const intake = { ...DEFAULT_SETTINGS.intake, ...stored.intake };
 	return {
 		telegram: {
 			...telegram,
@@ -76,7 +101,16 @@ export function mergeSettings(data: unknown): MsxdPluginSettings {
 				DEFAULT_NOTE_NAME,
 			),
 			defaultHeading: asString(inbox.defaultHeading, DEFAULT_HEADING),
+			separateMessages: inbox.separateMessages === true,
+			mediaFolder: asString(inbox.mediaFolder, DEFAULT_MEDIA_FOLDER),
 			rules: sanitizeRules(inbox.rules),
+		},
+		intake: {
+			enabled: intake.enabled === true,
+			offset:
+				typeof intake.offset === 'number' && intake.offset > 0
+					? Math.floor(intake.offset)
+					: 0,
 		},
 	};
 }
@@ -99,6 +133,7 @@ export function createRule(): MessageRule {
 		id: createRuleId(),
 		filter: '{{all}}',
 		path: DEFAULT_INBOX_FOLDER,
+		mediaPath: '',
 		heading: DEFAULT_HEADING,
 	};
 }
@@ -152,6 +187,7 @@ function sanitizeRules(value: unknown): MessageRule[] {
 			id,
 			filter: asString(rule.filter, ''),
 			path: asString(rule.path, ''),
+			mediaPath: asString(rule.mediaPath, ''),
 			heading: asString(rule.heading, ''),
 		});
 	}

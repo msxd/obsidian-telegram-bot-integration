@@ -5,6 +5,7 @@ import {
 	createRule,
 	DEFAULT_HEADING,
 	DEFAULT_INBOX_FOLDER,
+	DEFAULT_MEDIA_FOLDER,
 	DEFAULT_NOTE_NAME,
 	MessageRule,
 } from '../settings';
@@ -102,6 +103,47 @@ export class InboxSection implements SettingsSection {
 							.setValue(inbox.defaultHeading)
 							.onChange((value) => {
 								inbox.defaultHeading = value;
+								void this.plugin.saveSettings();
+							});
+					});
+			})
+			.addSetting((setting) => {
+				setting
+					.setName('Media folder')
+					.setDesc(
+						'Where attachments go when a rule does not name its own folder.',
+					)
+					.addText((text) => {
+						text.setPlaceholder(DEFAULT_MEDIA_FOLDER).setValue(
+							inbox.mediaFolder,
+						);
+						const suggest = new FolderSuggest(
+							this.plugin.app,
+							text.inputEl,
+						);
+						suggest.onSelect((folder) => {
+							suggest.setValue(folder.path);
+							suggest.close();
+							inbox.mediaFolder = folder.path;
+							void this.plugin.saveSettings();
+						});
+						text.onChange((value) => {
+							inbox.mediaFolder = value.trim();
+							void this.plugin.saveSettings();
+						});
+					});
+			})
+			.addSetting((setting) => {
+				setting
+					.setName('Separate messages')
+					.setDesc(
+						'Put a horizontal rule before a message added to a note that already has content.',
+					)
+					.addToggle((toggle) => {
+						toggle
+							.setValue(inbox.separateMessages)
+							.onChange((value) => {
+								inbox.separateMessages = value;
 								void this.plugin.saveSettings();
 							});
 					});

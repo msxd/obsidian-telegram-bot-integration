@@ -1,7 +1,7 @@
 import { App, ButtonComponent, Modal, Setting } from 'obsidian';
 import { describeFilter, matchesFilter, parseFilter } from '../inbox/filter';
 import { IncomingMessage } from '../inbox/message';
-import { previewRulePath } from '../inbox/routing';
+import { previewRuleMediaFolder, previewRulePath } from '../inbox/routing';
 import { createSampleMessage } from '../inbox/sample';
 import { InboxSettings, MessageRule } from '../settings';
 
@@ -32,6 +32,7 @@ export class RuleModal extends Modal {
 	private filterErrorEl: HTMLElement | null = null;
 	private matchEl: HTMLElement | null = null;
 	private pathEl: HTMLElement | null = null;
+	private mediaEl: HTMLElement | null = null;
 	private saveButton: ButtonComponent | null = null;
 
 	constructor(
@@ -85,6 +86,21 @@ export class RuleModal extends Modal {
 			});
 
 		new Setting(contentEl)
+			.setName('Media path')
+			.setDesc(
+				'Folder for photos, files and voice notes. Takes the same variables. Leave empty to use the shared media folder.',
+			)
+			.addTextArea((text) => {
+				text.inputEl.addClass('msxd-template-input');
+				text.setPlaceholder('{{chat}}/media')
+					.setValue(this.draft.mediaPath)
+					.onChange((value) => {
+						this.draft.mediaPath = value;
+						this.refresh();
+					});
+			});
+
+		new Setting(contentEl)
 			.setName('Heading')
 			.setDesc('Written before the message. Leave empty for none.')
 			.addText((text) => {
@@ -122,6 +138,7 @@ export class RuleModal extends Modal {
 		this.filterErrorEl = null;
 		this.matchEl = null;
 		this.pathEl = null;
+		this.mediaEl = null;
 		this.saveButton = null;
 	}
 
@@ -137,6 +154,7 @@ export class RuleModal extends Modal {
 		});
 		this.matchEl = preview.createDiv({ cls: 'msxd-status' });
 		this.pathEl = preview.createDiv({ cls: 'msxd-preview-path' });
+		this.mediaEl = preview.createDiv({ cls: 'msxd-preview-path' });
 	}
 
 	private buildSyntaxHelp(containerEl: HTMLElement): void {
@@ -165,6 +183,9 @@ export class RuleModal extends Modal {
 
 		this.pathEl?.setText(
 			previewRulePath(this.settings, this.draft, this.sample),
+		);
+		this.mediaEl?.setText(
+			`Media: ${previewRuleMediaFolder(this.settings, this.draft, this.sample)}/`,
 		);
 	}
 

@@ -102,7 +102,8 @@ function pickHashtag(hashtags: string[], argument: string): string | null {
 	return hashtags[index] ?? '';
 }
 
-function sanitizeForFileName(value: string): string {
+/** Strips what a file name may not hold. Shared with attachment naming. */
+export function sanitizeForFileName(value: string): string {
 	return (
 		value
 			.replace(CONTROL_CHARACTERS, ' ')

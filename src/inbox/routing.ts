@@ -1,5 +1,10 @@
 import { normalizePath } from 'obsidian';
-import { DEFAULT_INBOX_FOLDER, InboxSettings, MessageRule } from '../settings';
+import {
+	DEFAULT_INBOX_FOLDER,
+	DEFAULT_MEDIA_FOLDER,
+	InboxSettings,
+	MessageRule,
+} from '../settings';
 import { matchesFilter, parseFilter } from './filter';
 import { IncomingMessage } from './message';
 import { renderPathTemplate, renderTextTemplate } from './template';
@@ -9,6 +14,8 @@ const NOTE_EXTENSION = '.md';
 export interface RoutingTarget {
 	/** Vault path of the note, always ending in `.md`. */
 	path: string;
+	/** Folder attachments are saved into. */
+	mediaFolder: string;
 	/** Text written before the message body. */
 	heading: string;
 	/** The rule that claimed the message, or null when it fell through to the inbox. */
@@ -28,9 +35,27 @@ export function resolveTarget(
 	const pathTemplate = rule !== null ? rule.path : settings.folder;
 	return {
 		path: buildNotePath(pathTemplate, settings, message),
+		mediaFolder: buildMediaFolder(rule?.mediaPath ?? '', settings, message),
 		heading: renderTextTemplate(heading, message),
 		rule,
 	};
+}
+
+/**
+ * Attachments always land in a folder: the file itself dictates the extension,
+ * so there is nothing for a note-style path to name. An empty rule template
+ * falls back to the shared media folder.
+ */
+function buildMediaFolder(
+	template: string,
+	settings: InboxSettings,
+	message: IncomingMessage,
+): string {
+	const rendered = cleanPath(renderPathTemplate(template, message));
+	if (rendered.length > 0) return normalizePath(rendered);
+
+	const shared = cleanPath(renderPathTemplate(settings.mediaFolder, message));
+	return normalizePath(shared.length > 0 ? shared : DEFAULT_MEDIA_FOLDER);
 }
 
 /**
@@ -43,6 +68,15 @@ export function previewRulePath(
 	message: IncomingMessage,
 ): string {
 	return buildNotePath(rule.path, settings, message);
+}
+
+/** The media folder this rule would use, for the same preview. */
+export function previewRuleMediaFolder(
+	settings: InboxSettings,
+	rule: MessageRule,
+	message: IncomingMessage,
+): string {
+	return buildMediaFolder(rule.mediaPath, settings, message);
 }
 
 function findRule(

@@ -128,7 +128,7 @@ export class AllowedChatsSection implements SettingsSection {
 	private buildLookupDescription(): DocumentFragment {
 		return createFragment((fragment) => {
 			fragment.createDiv({
-				text: 'Write to the bot from the chat you want to allow, then refresh. Telegram only keeps unread updates for 24 hours, so older chats will not show up.',
+				text: 'Write to the bot from the chat you want to allow, then refresh. While receiving is on, this lists the chats seen since it started; otherwise Telegram only keeps unread updates for 24 hours, so older chats will not show up.',
 			});
 			const text = this.buildStatusText();
 			if (text.length === 0) return;
@@ -167,6 +167,15 @@ export class AllowedChatsSection implements SettingsSection {
 	}
 
 	private async refresh(): Promise<void> {
+		// While intake is listening it owns the update queue, and a second
+		// reader would collide with it (409). Its own sightings serve instead.
+		if (this.plugin.intake.isRunning()) {
+			this.candidates = [...this.plugin.intake.getSeenChats()];
+			this.status = { kind: 'done', found: this.candidates.length };
+			this.renderSection();
+			return;
+		}
+
 		const token = this.plugin.settings.telegram.botToken;
 		if (token.length === 0) {
 			this.status = { kind: 'error', message: 'Set a bot token first.' };

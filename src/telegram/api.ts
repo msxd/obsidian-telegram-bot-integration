@@ -56,6 +56,29 @@ export async function getMe(token: string): Promise<TelegramBotInfo> {
 }
 
 /**
+ * Waits for new updates, confirming everything before `offset`.
+ *
+ * This is the only caller allowed to pass a positive offset: doing so tells
+ * Telegram to drop those updates for good, so it must happen after they have
+ * been filed. `timeoutSeconds` holds the connection open until something
+ * arrives, which is what makes this long polling rather than a busy loop.
+ *
+ * @throws {TelegramApiError} on 409 when another reader holds the queue.
+ */
+export async function getUpdates(
+	token: string,
+	offset: number,
+	timeoutSeconds: number,
+): Promise<unknown[]> {
+	return asArray(
+		await call(token, 'getUpdates', {
+			offset,
+			timeout: timeoutSeconds,
+		}),
+	);
+}
+
+/**
  * Lists the chats that have written to the bot recently, newest first.
  *
  * Reads the update queue with a negative offset, which returns the tail of the
@@ -68,15 +91,63 @@ export async function getMe(token: string): Promise<TelegramBotInfo> {
  * @throws {TelegramApiError} when Telegram rejects the call or is unreachable.
  */
 export async function getRecentChats(token: string): Promise<ChatRef[]> {
-	const result = await call(token, 'getUpdates', {
-		offset: -UPDATE_LIMIT,
-		limit: UPDATE_LIMIT,
-		timeout: 0,
-	});
-	if (!Array.isArray(result)) {
-		throw new TelegramApiError('Telegram returned an unexpected response.');
+	return collectChats(
+		asArray(
+			await call(token, 'getUpdates', {
+				offset: -UPDATE_LIMIT,
+				limit: UPDATE_LIMIT,
+				timeout: 0,
+			}),
+		),
+	);
+}
+
+/**
+ * Resolves a file id to a download path.
+ *
+ * @throws {TelegramApiError} when Telegram refuses, which includes files over
+ * the 20 MB a bot is allowed to download.
+ */
+export async function getFilePath(
+	token: string,
+	fileId: string,
+): Promise<string> {
+	const result = await call(token, 'getFile', { file_id: fileId });
+	const path =
+		typeof result === 'object' && result !== null
+			? (result as Record<string, unknown>).file_path
+			: undefined;
+	if (typeof path !== 'string' || path.length === 0) {
+		throw new TelegramApiError(
+			'Telegram did not return a download path for this file.',
+		);
 	}
-	return collectChats(result);
+	return path;
+}
+
+/** Downloads a file's bytes from the path `getFilePath` returned. */
+export async function downloadFile(
+	token: string,
+	filePath: string,
+): Promise<ArrayBuffer> {
+	let response;
+	try {
+		response = await requestUrl({
+			url: `${API_BASE}/file/bot${token}/${filePath}`,
+			method: 'GET',
+			throw: false,
+		});
+	} catch (error) {
+		const reason = redactToken(describeError(error), token);
+		throw new TelegramApiError(`Could not download the file: ${reason}`);
+	}
+	if (response.status !== 200) {
+		throw new TelegramApiError(
+			describeFailure(response.status),
+			response.status,
+		);
+	}
+	return response.arrayBuffer;
 }
 
 async function call(
@@ -106,6 +177,13 @@ async function call(
 		);
 	}
 	return body.result;
+}
+
+function asArray(value: unknown): unknown[] {
+	if (!Array.isArray(value)) {
+		throw new TelegramApiError('Telegram returned an unexpected response.');
+	}
+	return value as unknown[];
 }
 
 /** Newest first, one entry per chat. */
