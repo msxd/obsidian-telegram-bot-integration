@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "msxd-all-in-one-plugin",
+	"name": "MSXD All-in-One Plugin",
 	"version": "1.0.0",
-	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
+	"minAppVersion": "1.11.0",
+	"description": "Plugin for MSXD by MSXD",
+	"author": "MSXD",
+	"authorUrl": "https://msxd.dev",
+	"fundingUrl": "https://msxd.dev/donate",
+	"isDesktopOnly": true
 }
