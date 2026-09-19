@@ -1,12 +1,12 @@
-.msxd-token-status {
+.msxd-status {
 	margin-top: var(--size-2-2);
 	color: var(--text-muted);
 }
 
-.msxd-token-status.is-ok {
+.msxd-status.is-ok {
 	color: var(--text-success);
 }
 
-.msxd-token-status.is-error {
+.msxd-status.is-error {
 	color: var(--text-error);
 }

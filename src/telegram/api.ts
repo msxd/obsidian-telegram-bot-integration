@@ -1,9 +1,13 @@
 import { requestUrl } from 'obsidian';
+import { ChatRef, toChatRef } from './types';
 
 const API_BASE = 'https://api.telegram.org';
 
 /** Token issued by @BotFather: `<bot id>:<auth string>`. */
 const TOKEN_PATTERN = /^\d{5,}:[A-Za-z0-9_-]{30,}$/;
+
+/** How far back to look when collecting recently seen chats. */
+const UPDATE_LIMIT = 100;
 
 export interface TelegramBotInfo {
 	id: number;
@@ -40,11 +44,53 @@ export function redactToken(text: string, token: string): string {
  * @throws {TelegramApiError} when Telegram rejects the token or is unreachable.
  */
 export async function getMe(token: string): Promise<TelegramBotInfo> {
+	const result = await call(token, 'getMe');
+	if (!isBotUser(result)) {
+		throw new TelegramApiError('Telegram returned an unexpected response.');
+	}
+	return {
+		id: result.id,
+		username: result.username,
+		firstName: result.first_name,
+	};
+}
+
+/**
+ * Lists the chats that have written to the bot recently, newest first.
+ *
+ * Reads the update queue with a negative offset, which returns the tail of the
+ * queue *without* confirming it. A positive offset would delete those updates
+ * from Telegram, and message intake would never see them.
+ *
+ * Telegram only keeps unconfirmed updates for 24 hours, so this returns
+ * nothing for a bot nobody has written to lately.
+ *
+ * @throws {TelegramApiError} when Telegram rejects the call or is unreachable.
+ */
+export async function getRecentChats(token: string): Promise<ChatRef[]> {
+	const result = await call(token, 'getUpdates', {
+		offset: -UPDATE_LIMIT,
+		limit: UPDATE_LIMIT,
+		timeout: 0,
+	});
+	if (!Array.isArray(result)) {
+		throw new TelegramApiError('Telegram returned an unexpected response.');
+	}
+	return collectChats(result);
+}
+
+async function call(
+	token: string,
+	method: string,
+	params?: Record<string, unknown>,
+): Promise<unknown> {
 	let response;
 	try {
 		response = await requestUrl({
-			url: `${API_BASE}/bot${token}/getMe`,
-			method: 'GET',
+			url: `${API_BASE}/bot${token}/${method}`,
+			method: 'POST',
+			contentType: 'application/json',
+			body: JSON.stringify(params ?? {}),
 			throw: false,
 		});
 	} catch (error) {
@@ -59,14 +105,35 @@ export async function getMe(token: string): Promise<TelegramBotInfo> {
 			response.status,
 		);
 	}
-	if (!isBotUser(body.result)) {
-		throw new TelegramApiError('Telegram returned an unexpected response.');
+	return body.result;
+}
+
+/** Newest first, one entry per chat. */
+function collectChats(updates: unknown[]): ChatRef[] {
+	const chats = new Map<number, ChatRef>();
+	// Telegram returns updates oldest first, so walk backwards.
+	for (let i = updates.length - 1; i >= 0; i--) {
+		const chat = findChat(updates[i]);
+		if (chat !== null && !chats.has(chat.id)) {
+			chats.set(chat.id, chat);
+		}
 	}
-	return {
-		id: body.result.id,
-		username: body.result.username,
-		firstName: body.result.first_name,
-	};
+	return Array.from(chats.values());
+}
+
+/**
+ * Digs the chat out of an update without hardcoding the update kinds: every
+ * update wraps a single payload (message, channel post, membership change, …)
+ * and each of those carries a `chat`.
+ */
+function findChat(update: unknown): ChatRef | null {
+	if (typeof update !== 'object' || update === null) return null;
+	for (const payload of Object.values(update)) {
+		if (typeof payload !== 'object' || payload === null) continue;
+		const chat = toChatRef((payload as Record<string, unknown>).chat);
+		if (chat !== null) return chat;
+	}
+	return null;
 }
 
 interface TelegramResponse {
@@ -116,6 +183,8 @@ function describeFailure(status: number, description?: string): string {
 			return 'Telegram rejected this token. Check it with @BotFather or generate a new one.';
 		case 404:
 			return 'Telegram does not know this token. Make sure the whole token was copied.';
+		case 409:
+			return 'Another process is reading this bot’s updates, or a webhook is set. Stop it and try again.';
 		case 429:
 			return 'Telegram is rate limiting this bot. Try again in a minute.';
 		default:
