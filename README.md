@@ -8,8 +8,9 @@ It works in two directions:
 - **Outgoing.** The bot answers commands about what is in the vault, starting with tasks that
   are due.
 
-The plugin is built for one person, one bot and one vault. There is no server, no account and
-no third party: the only host it ever talks to is `api.telegram.org`.
+The plugin is built for one person, one bot and one vault. It needs a Telegram account and a
+bot of your own, and nothing else: no server, no account with me or any third-party service,
+and the only host it ever talks to is `api.telegram.org`.
 
 ## Requirements
 
