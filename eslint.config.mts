@@ -30,4 +30,11 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	// Type-aware rules, limited to the plugin's own sources: they are what
+	// catches a dependency whose types fail to resolve, which turns every call
+	// on it into `any` and passes a plain lint without a word.
+	{
+		files: ['src/**/*.ts'],
+		extends: [...tseslint.configs.recommendedTypeChecked],
+	},
 );
