@@ -1,6 +1,6 @@
 {
 	"name": "telegram-bot-integration-by-msxd",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "Send messages to your own Telegram bot to file them into notes, and ask it what tasks are due.",
 	"main": "main.js",
 	"type": "module",

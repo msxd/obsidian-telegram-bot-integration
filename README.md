@@ -1,4 +1,4 @@
-# Telegram Bot Integration by MSXD
+# Telegram Vault Bot
 
 An Obsidian plugin that connects a personal Telegram bot to your vault.
 
@@ -28,7 +28,7 @@ The plugin is not in the community list yet, so install it by hand:
 
 ## Setup
 
-Everything lives in **Settings → Telegram Bot Integration by MSXD**.
+Everything lives in **Settings → Telegram Vault Bot**.
 
 1. **Bot token.** Paste the token from @BotFather and press **Check token**. The plugin asks
    Telegram who the bot is and remembers its username.
