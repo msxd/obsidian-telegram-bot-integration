@@ -43,7 +43,7 @@ export class CommandService {
 			const token = this.plugin.settings.telegram.botToken;
 			new Notice('Could not answer a command sent to the bot.');
 			console.error(
-				'MSXD plugin: answering a command failed',
+				'Telegram Vault Bot: answering a command failed',
 				redactToken(String(error), token),
 			);
 		}

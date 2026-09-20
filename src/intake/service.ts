@@ -195,7 +195,7 @@ export class IntakeService {
 		} catch (error) {
 			// One unwritable path must not stop the queue.
 			new Notice(`Could not save a message to ${target.path}`);
-			console.error('MSXD plugin: writing a message failed', error);
+			console.error('Telegram Vault Bot: writing a message failed', error);
 		}
 	}
 
@@ -235,7 +235,7 @@ export class IntakeService {
 						: 'it could not be saved';
 				new Notice(`Skipped a ${attachment.kind}: ${reason}`);
 				console.error(
-					'MSXD plugin: saving an attachment failed',
+					'Telegram Vault Bot: saving an attachment failed',
 					redactToken(String(error), token),
 				);
 			}
@@ -270,7 +270,7 @@ export class IntakeService {
 				);
 			}
 			console.error(
-				'MSXD plugin: reacting to a message failed',
+				'Telegram Vault Bot: reacting to a message failed',
 				redactToken(String(error), token),
 			);
 		}
