@@ -1,7 +1,7 @@
 {
 	"id": "telegram-bot-integration-by-msxd",
 	"name": "Telegram Vault Bot",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"minAppVersion": "1.11.0",
 	"description": "Send messages to your own Telegram bot to file them into notes, and ask it what tasks are due.",
 	"author": "MSXD",
