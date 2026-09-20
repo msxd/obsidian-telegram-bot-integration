@@ -174,6 +174,7 @@ plugins** to see the change.
 
 ## License
 
-[0BSD](LICENSE): use it, change it, pass it on, with credit or without. It grew out of the
-[Obsidian sample plugin](https://github.com/obsidianmd/obsidian-sample-plugin), which carries
-the same license.
+[MIT](LICENSE): use it, change it, ship it, as long as the copyright notice travels with it.
+
+It grew out of the [Obsidian sample plugin](https://github.com/obsidianmd/obsidian-sample-plugin),
+which is released under 0BSD and asks for nothing in return.
