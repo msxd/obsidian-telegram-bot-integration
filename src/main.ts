@@ -3,7 +3,7 @@ import { IntakeService } from './intake/service';
 import { MsxdPluginSettings, mergeSettings } from './settings';
 import { MSXDPluginSettingTab } from './ui/settings-tab';
 
-export default class MSXDAllInOnePlugin extends Plugin {
+export default class MSXDTelegramPlugin extends Plugin {
 	settings!: MsxdPluginSettings;
 	intake!: IntakeService;
 

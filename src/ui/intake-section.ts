@@ -1,16 +1,16 @@
 import { SettingGroup } from 'obsidian';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import { IntakeStatus } from '../intake/service';
 import { ALLOWED_REACTIONS } from '../telegram/reactions';
 import { replaceGroups, SettingsSection } from './section';
 
 export class IntakeSection implements SettingsSection {
-	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly plugin: MSXDTelegramPlugin;
 	private parentEl: HTMLElement | null = null;
 	private groupEls: Element[] = [];
 	private unsubscribe: (() => void) | null = null;
 
-	constructor(plugin: MSXDAllInOnePlugin) {
+	constructor(plugin: MSXDTelegramPlugin) {
 		this.plugin = plugin;
 	}
 

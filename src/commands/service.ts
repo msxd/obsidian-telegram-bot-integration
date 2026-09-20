@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
 import { IncomingMessage } from '../inbox/message';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import { findTopic, TopicRef } from '../settings';
 import { formatTasksReply } from '../tasks/report';
 import { collectTasks, createRange, resolveScope, TaskScope } from '../tasks/scanner';
@@ -16,9 +16,9 @@ import { BotCommand, parseCommand, topicCommands } from './parse';
  * that is not a command it knows is left for the routing engine.
  */
 export class CommandService {
-	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly plugin: MSXDTelegramPlugin;
 
-	constructor(plugin: MSXDAllInOnePlugin) {
+	constructor(plugin: MSXDTelegramPlugin) {
 		this.plugin = plugin;
 	}
 

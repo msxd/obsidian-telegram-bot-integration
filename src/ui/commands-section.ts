@@ -5,17 +5,17 @@ import {
 	isReservedCommand,
 	topicCommands,
 } from '../commands/parse';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import { createTopic, TopicRef } from '../settings';
 import { replaceGroups, SettingsSection } from './section';
 
 /** Topics: the named folders and notes bot commands can be pointed at. */
 export class CommandsSection implements SettingsSection {
-	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly plugin: MSXDTelegramPlugin;
 	private parentEl: HTMLElement | null = null;
 	private groupEls: Element[] = [];
 
-	constructor(plugin: MSXDAllInOnePlugin) {
+	constructor(plugin: MSXDTelegramPlugin) {
 		this.plugin = plugin;
 	}
 

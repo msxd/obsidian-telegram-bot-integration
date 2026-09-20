@@ -1,5 +1,5 @@
 import { App, PluginSettingTab } from 'obsidian';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import { AllowedChatsSection } from './allowed-chats-section';
 import { CommandsSection } from './commands-section';
 import { InboxSection } from './inbox-section';
@@ -10,7 +10,7 @@ import { TokenSection } from './token-section';
 export class MSXDPluginSettingTab extends PluginSettingTab {
 	private readonly sections: SettingsSection[];
 
-	constructor(app: App, plugin: MSXDAllInOnePlugin) {
+	constructor(app: App, plugin: MSXDTelegramPlugin) {
 		super(app, plugin);
 		this.sections = [
 			new TokenSection(plugin),

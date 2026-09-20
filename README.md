@@ -1,4 +1,4 @@
-# MSXD All-in-One Plugin
+# Telegram Bot Integration by MSXD
 
 An Obsidian plugin that connects a personal Telegram bot to your vault.
 
@@ -23,12 +23,12 @@ no third party: the only host it ever talks to is `api.telegram.org`.
 The plugin is not in the community list yet, so install it by hand:
 
 1. Download `main.js`, `manifest.json` and `styles.css` from a release.
-2. Put them in `<vault>/.obsidian/plugins/msxd-all-in-one-plugin/`.
+2. Put them in `<vault>/.obsidian/plugins/telegram-bot-integration-by-msxd/`.
 3. Reload Obsidian and enable the plugin in **Settings → Community plugins**.
 
 ## Setup
 
-Everything lives in **Settings → MSXD All-in-One Plugin**.
+Everything lives in **Settings → Telegram Bot Integration by MSXD**.
 
 1. **Bot token.** Paste the token from @BotFather and press **Check token**. The plugin asks
    Telegram who the bot is and remembers its username.
@@ -173,4 +173,6 @@ plugins** to see the change.
 
 ## License
 
-[0-BSD](LICENSE).
+[0BSD](LICENSE): use it, change it, pass it on, with credit or without. It grew out of the
+[Obsidian sample plugin](https://github.com/obsidianmd/obsidian-sample-plugin), which carries
+the same license.

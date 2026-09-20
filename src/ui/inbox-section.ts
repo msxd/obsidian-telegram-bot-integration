@@ -1,16 +1,16 @@
 import { Setting, SettingGroup } from 'obsidian';
 import { describeFilter, parseFilter } from '../inbox/filter';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import { createRule, MessageRule } from '../settings';
 import { RuleModal } from './rule-modal';
 import { replaceGroups, SettingsSection } from './section';
 
 export class InboxSection implements SettingsSection {
-	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly plugin: MSXDTelegramPlugin;
 	private parentEl: HTMLElement | null = null;
 	private groupEls: Element[] = [];
 
-	constructor(plugin: MSXDAllInOnePlugin) {
+	constructor(plugin: MSXDTelegramPlugin) {
 		this.plugin = plugin;
 	}
 

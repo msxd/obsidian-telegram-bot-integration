@@ -7,7 +7,7 @@ import {
 	TextComponent,
 } from 'obsidian';
 import { buildCommandHints, MAX_COMMANDS } from '../commands/hints';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import {
 	getMe,
 	isWellFormedToken,
@@ -33,14 +33,14 @@ type HintsStatus =
 const TOKEN_PLACEHOLDER = '123456789:AAF-abc...';
 
 export class TokenSection implements SettingsSection {
-	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly plugin: MSXDTelegramPlugin;
 	private status: TokenStatus = { kind: 'unknown' };
 	private statusEl: HTMLElement | null = null;
 	private tokenInput: TextComponent | null = null;
 	private hintsStatus: HintsStatus = { kind: 'unknown' };
 	private hintsStatusEl: HTMLElement | null = null;
 
-	constructor(plugin: MSXDAllInOnePlugin) {
+	constructor(plugin: MSXDTelegramPlugin) {
 		this.plugin = plugin;
 	}
 

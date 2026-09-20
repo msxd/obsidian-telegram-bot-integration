@@ -1,5 +1,5 @@
 import { Notice, SettingGroup } from 'obsidian';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import { getRecentChats, redactToken, TelegramApiError } from '../telegram/api';
 import { ChatRef, ChatType } from '../telegram/types';
 import { replaceGroups, SettingsSection } from './section';
@@ -18,7 +18,7 @@ const CHAT_TYPE_LABELS: Record<ChatType, string> = {
 };
 
 export class AllowedChatsSection implements SettingsSection {
-	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly plugin: MSXDTelegramPlugin;
 	private parentEl: HTMLElement | null = null;
 	/** The group elements this section owns, so a redraw can replace them in place. */
 	private groupEls: Element[] = [];
@@ -27,7 +27,7 @@ export class AllowedChatsSection implements SettingsSection {
 	private status: LookupStatus = { kind: 'idle' };
 	private loading = false;
 
-	constructor(plugin: MSXDAllInOnePlugin) {
+	constructor(plugin: MSXDTelegramPlugin) {
 		this.plugin = plugin;
 	}
 

@@ -1,9 +1,9 @@
 {
-	"id": "msxd-all-in-one-plugin",
-	"name": "MSXD All-in-One Plugin",
-	"version": "1.0.0",
+	"id": "telegram-bot-integration-by-msxd",
+	"name": "Telegram Bot Integration by MSXD",
+	"version": "1.0.1",
 	"minAppVersion": "1.11.0",
-	"description": "Plugin for MSXD by MSXD",
+	"description": "Send messages to your own Telegram bot to file them into notes, and ask it what tasks are due.",
 	"author": "MSXD",
 	"authorUrl": "https://msxd.dev",
 	"fundingUrl": "https://msxd.dev/donate",

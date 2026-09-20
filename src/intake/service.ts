@@ -4,7 +4,7 @@ import { saveAttachment } from '../inbox/media';
 import { IncomingMessage } from '../inbox/message';
 import { resolveTarget, RoutingTarget } from '../inbox/routing';
 import { writeMessage } from '../inbox/writer';
-import type MSXDAllInOnePlugin from '../main';
+import type MSXDTelegramPlugin from '../main';
 import { isChatAllowed } from '../settings';
 import {
 	downloadFile,
@@ -40,7 +40,7 @@ export type IntakeStatus =
  * previous request and has to retry rather than give up.
  */
 export class IntakeService {
-	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly plugin: MSXDTelegramPlugin;
 	private readonly commands: CommandService;
 	private readonly listeners = new Set<() => void>();
 	/** Chats seen while listening, newest first. Feeds the allowlist picker. */
@@ -57,7 +57,7 @@ export class IntakeService {
 	/** Reactions can be refused for every message alike; warn once, not per message. */
 	private reactionWarned = false;
 
-	constructor(plugin: MSXDAllInOnePlugin) {
+	constructor(plugin: MSXDTelegramPlugin) {
 		this.plugin = plugin;
 		this.commands = new CommandService(plugin);
 	}
