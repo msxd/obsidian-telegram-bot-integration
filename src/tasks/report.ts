@@ -1,6 +1,6 @@
-import { moment } from 'obsidian';
 import { escapeHtml } from '../telegram/text';
-import { DAY_FORMAT, DayRange, today } from './scanner';
+import { daysBetween, formatDayKey, todayKey } from '../time';
+import { DayRange } from './scanner';
 import { TaskItem } from './task';
 
 /** Marks a day in the reply. Written as an escape so the file stays ASCII. */
@@ -64,14 +64,12 @@ function groupByDay(tasks: readonly TaskItem[]): Map<string, TaskItem[]> {
 }
 
 function describeDay(day: string): string {
-	const date = moment(day, DAY_FORMAT);
-	const start = moment(today(), DAY_FORMAT);
-	const distance = date.diff(start, 'days');
-	const short = date.format('DD MMM');
+	const distance = daysBetween(todayKey(), day);
+	const short = formatDayKey(day, 'DD MMM');
 
 	if (distance === 0) return `Today, ${short}`;
 	if (distance === 1) return `Tomorrow, ${short}`;
-	return date.format('ddd, DD MMM');
+	return formatDayKey(day, 'ddd, DD MMM');
 }
 
 function describeEmpty(days: number): string {

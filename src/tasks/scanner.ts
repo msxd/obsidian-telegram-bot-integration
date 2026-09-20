@@ -1,8 +1,6 @@
-import { App, moment, normalizePath, TFile, TFolder, Vault } from 'obsidian';
+import { App, normalizePath, TFile, TFolder, Vault } from 'obsidian';
+import { dayKeyAhead, todayKey } from '../time';
 import { parseTaskLine, TaskItem } from './task';
-
-/** How a day is written wherever it is compared or grouped. */
-export const DAY_FORMAT = 'YYYY-MM-DD';
 
 /** The part of the vault a command looks through. */
 export type TaskScope =
@@ -21,18 +19,7 @@ export interface DayRange {
 
 /** Counted from today, so one day means today alone. */
 export function createRange(days: number): DayRange {
-	const start = moment().startOf('day');
-	return {
-		from: start.format(DAY_FORMAT),
-		to: start
-			.clone()
-			.add(days - 1, 'days')
-			.format(DAY_FORMAT),
-	};
-}
-
-export function today(): string {
-	return moment().startOf('day').format(DAY_FORMAT);
+	return { from: todayKey(), to: dayKeyAhead(days - 1) };
 }
 
 /**

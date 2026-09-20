@@ -1,4 +1,4 @@
-import { moment } from 'obsidian';
+import { formatDate } from '../time';
 import { IncomingMessage } from './message';
 
 /** `{{name}}` or `{{name:argument}}`. */
@@ -79,7 +79,7 @@ function resolveVariable(
 		case 'messageDate':
 		case 'messageTime':
 			return argument.length > 0
-				? moment(message.date).format(argument)
+				? formatDate(message.date, argument)
 				: null;
 		case 'hashtag':
 			return pickHashtag(message.hashtags, argument);
