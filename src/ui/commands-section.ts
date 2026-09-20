@@ -1,4 +1,10 @@
 import { App, normalizePath, Setting, SettingGroup, TFile, TFolder } from 'obsidian';
+import {
+	hasTopicCommands,
+	isCommandName,
+	isReservedCommand,
+	topicCommands,
+} from '../commands/parse';
 import type MSXDAllInOnePlugin from '../main';
 import { createTopic, TopicRef } from '../settings';
 import { replaceGroups, SettingsSection } from './section';
@@ -63,7 +69,10 @@ export class CommandsSection implements SettingsSection {
 				text: 'A topic is a code word for one folder or one note, so a command can stay inside it. Without a topic the whole vault is searched.',
 			});
 			fragment.createDiv({
-				text: 'From an allowed chat: /tasks for what is due today, /tasks 3 for the next three days, /tasks 3 code for a topic, and /topics for the list of codes.',
+				text: 'From an allowed chat: /tasks for what is due today, /tasks 3 for the next three days, /tasks 3 code for a topic, and /topics for the list of codes. The ready-made /tasks2, /tasks5 and /tasks7 cover today plus that many days.',
+			});
+			fragment.createDiv({
+				text: 'A topic with commands switched on answers to its own code the same way, so /work2 is /tasks 3 work. Register them with Telegram from the Command hints button above.',
 			});
 			if (!this.plugin.settings.intake.enabled) {
 				fragment.createDiv({
@@ -75,9 +84,9 @@ export class CommandsSection implements SettingsSection {
 	}
 
 	/**
-	 * One row: the code, the path, and what that path currently points at.
-	 * Typing only saves, never redraws: a redraw would rebuild the input and
-	 * take the focus away mid-word.
+	 * One row: the code, the path, whether the topic gets commands of its own,
+	 * and what all of that currently means. Typing only saves, never redraws:
+	 * a redraw would rebuild the input and take the focus away mid-word.
 	 */
 	private buildTopicSetting(setting: Setting, topic: TopicRef): void {
 		setting.setName(nameOf(topic));
@@ -98,6 +107,16 @@ export class CommandsSection implements SettingsSection {
 				.setValue(topic.path)
 				.onChange((value) => {
 					topic.path = value.trim();
+					setting.setDesc(this.describeTopic(topic));
+					void this.plugin.saveSettings();
+				});
+		});
+		setting.addToggle((toggle) => {
+			toggle
+				.setTooltip('Commands of its own')
+				.setValue(topic.commands)
+				.onChange((value) => {
+					topic.commands = value;
 					setting.setDesc(this.describeTopic(topic));
 					void this.plugin.saveSettings();
 				});
@@ -127,6 +146,15 @@ export class CommandsSection implements SettingsSection {
 					text: 'Another topic already uses this code, and the first one wins.',
 				});
 			}
+
+			const commands = describeCommands(
+				topic,
+				this.plugin.settings.commands.topics,
+			);
+			fragment.createDiv({
+				cls: commands.ok ? 'msxd-status' : 'msxd-status is-error',
+				text: commands.text,
+			});
 		});
 	}
 
@@ -155,6 +183,54 @@ export class CommandsSection implements SettingsSection {
 
 function nameOf(topic: TopicRef): string {
 	return topic.code.length > 0 ? topic.code : 'New topic';
+}
+
+/** The commands this topic answers to, or why it has none. */
+function describeCommands(
+	topic: TopicRef,
+	topics: readonly TopicRef[],
+): { ok: boolean; text: string } {
+	if (!topic.commands) {
+		return {
+			ok: true,
+			text: 'No commands of its own. Ask for it as /tasks 3 code.',
+		};
+	}
+	if (topic.code.length === 0) {
+		return { ok: true, text: 'Give it a code to get commands of its own.' };
+	}
+	if (isReservedCommand(topic.code)) {
+		return {
+			ok: false,
+			text: 'This name belongs to the bot itself, so the topic gets no commands.',
+		};
+	}
+	if (!isCommandName(topic.code)) {
+		return {
+			ok: false,
+			text: 'A command name takes only a\u2013z, 0\u20139 and _, so this code gets none.',
+		};
+	}
+	// A range of this topic can collide with another topic's own code, and the
+	// whole name wins, so the row must not promise what it will not get.
+	const taken = new Set(
+		topics
+			.filter((other) => other.id !== topic.id && hasTopicCommands(other))
+			.map((other) => other.code.toLowerCase()),
+	);
+	const own: string[] = [];
+	const lost: string[] = [];
+	for (const { name, ahead } of topicCommands(topic)) {
+		(ahead !== null && taken.has(name) ? lost : own).push(`/${name}`);
+	}
+
+	const answers = `Answers to ${own.join(', ')}.`;
+	return lost.length > 0
+		? {
+				ok: false,
+				text: `${answers} ${lost.join(', ')} belongs to another topic of that name.`,
+			}
+		: { ok: true, text: answers };
 }
 
 /** What the path points at right now, so a typo shows up before a command does. */

@@ -6,7 +6,7 @@ import { formatTasksReply } from '../tasks/report';
 import { collectTasks, createRange, resolveScope, TaskScope } from '../tasks/scanner';
 import { redactToken, sendMessage } from '../telegram/api';
 import { escapeHtml, splitMessage } from '../telegram/text';
-import { BotCommand, parseCommand } from './parse';
+import { BotCommand, parseCommand, topicCommands } from './parse';
 
 /**
  * Answers the commands a trusted chat sends.
@@ -30,6 +30,7 @@ export class CommandService {
 		const parsed = parseCommand(
 			message.text,
 			this.plugin.settings.telegram.botUsername,
+			this.plugin.settings.commands.topics,
 		);
 		if (parsed === null) return false;
 
@@ -105,6 +106,10 @@ function formatTopicsReply(topics: readonly TopicRef[]): string {
 		lines.push(
 			`· <code>${escapeHtml(topic.code)}</code> — ${escapeHtml(topic.path)}`,
 		);
+		const names = topicCommands(topic).map((entry) => `/${entry.name}`);
+		if (names.length > 0) {
+			lines.push(`  <code>${escapeHtml(names.join(' '))}</code>`);
+		}
 	}
 	const first = usable[0];
 	if (first !== undefined) {

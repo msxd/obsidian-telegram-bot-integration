@@ -54,6 +54,11 @@ export interface TopicRef {
 	code: string;
 	/** Vault path: a folder, or a single note when it ends in `.md`. */
 	path: string;
+	/**
+	 * Whether the topic answers to commands of its own (`/work`, `/work2`, …).
+	 * Needs a code Telegram accepts as a command name.
+	 */
+	commands: boolean;
 }
 
 export interface CommandsSettings {
@@ -175,7 +180,7 @@ export function isFallbackRule(rule: MessageRule): boolean {
 }
 
 export function createTopic(): TopicRef {
-	return { id: createId(), code: '', path: '' };
+	return { id: createId(), code: '', path: '', commands: true };
 }
 
 /**
@@ -328,6 +333,9 @@ function sanitizeTopics(value: unknown): TopicRef[] {
 			id,
 			code: asString(topic.code, '').trim(),
 			path: asString(topic.path, '').trim(),
+			// Topics saved before commands existed get them, which is what a
+			// topic added on purpose would have asked for anyway.
+			commands: topic.commands !== false,
 		});
 	}
 	return topics;

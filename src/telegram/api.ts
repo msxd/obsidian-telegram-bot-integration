@@ -9,6 +9,14 @@ const TOKEN_PATTERN = /^\d{5,}:[A-Za-z0-9_-]{30,}$/;
 /** How far back to look when collecting recently seen chats. */
 const UPDATE_LIMIT = 100;
 
+/** One entry of the command menu Telegram offers in a chat. */
+export interface TelegramCommand {
+	/** Name without the slash, lowercase, as the Bot API requires. */
+	command: string;
+	/** The line shown next to it in the menu. */
+	description: string;
+}
+
 export interface TelegramBotInfo {
 	id: number;
 	username: string;
@@ -122,6 +130,22 @@ export async function setMessageReaction(
 		message_id: messageId,
 		reaction: [{ type: 'emoji', emoji }],
 	});
+}
+
+/**
+ * Publishes the command menu Telegram shows in a chat.
+ *
+ * The list replaces whatever was registered before, so sending it again is how
+ * a removed command disappears. It is published for every chat the bot is in:
+ * a stranger sees the menu, but the allowlist still decides who gets an answer.
+ *
+ * @throws {TelegramApiError} when Telegram refuses the list.
+ */
+export async function setMyCommands(
+	token: string,
+	commands: readonly TelegramCommand[],
+): Promise<void> {
+	await call(token, 'setMyCommands', { commands });
 }
 
 /**
