@@ -1,4 +1,4 @@
-import { App, moment, normalizePath, TFile, TFolder } from 'obsidian';
+import { App, moment, normalizePath, TFile, TFolder, Vault } from 'obsidian';
 import { parseTaskLine, TaskItem } from './task';
 
 /** How a day is written wherever it is compared or grouped. */
@@ -79,16 +79,21 @@ export async function collectTasks(
 }
 
 function listFiles(app: App, scope: TaskScope): TFile[] {
+	if (scope.kind === 'vault') return app.vault.getMarkdownFiles();
+
+	const target = app.vault.getAbstractFileByPath(scope.path);
 	if (scope.kind === 'file') {
-		const file = app.vault.getAbstractFileByPath(scope.path);
-		return file instanceof TFile ? [file] : [];
+		return target instanceof TFile ? [target] : [];
 	}
+	// Walking the folder beats filtering every note in the vault by its path,
+	// which is the whole point of pointing a topic at a folder.
+	if (!(target instanceof TFolder)) return [];
 
-	const files = app.vault.getMarkdownFiles();
-	if (scope.kind === 'vault') return files;
-
-	const prefix = `${scope.path}/`;
-	return files.filter((file) => file.path.startsWith(prefix));
+	const notes: TFile[] = [];
+	Vault.recurseChildren(target, (file) => {
+		if (file instanceof TFile && file.extension === 'md') notes.push(file);
+	});
+	return notes;
 }
 
 /**
