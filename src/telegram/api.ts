@@ -125,6 +125,33 @@ export async function setMessageReaction(
 }
 
 /**
+ * Sends a reply to a chat.
+ *
+ * The text is HTML, so anything taken out of the vault has to be escaped with
+ * `escapeHtml()` before it gets here. Link previews are off: an answer that
+ * quotes a note should not turn a stray URL in it into a preview card.
+ *
+ * @param threadId forum topic the command came from, so the answer lands in the
+ * same topic rather than in the group's general one. Null outside forums.
+ * @throws {TelegramApiError} when Telegram refuses the message.
+ */
+export async function sendMessage(
+	token: string,
+	chatId: number,
+	text: string,
+	threadId: number | null,
+): Promise<void> {
+	const params: Record<string, unknown> = {
+		chat_id: chatId,
+		text,
+		parse_mode: 'HTML',
+		link_preview_options: { is_disabled: true },
+	};
+	if (threadId !== null) params.message_thread_id = threadId;
+	await call(token, 'sendMessage', params);
+}
+
+/**
  * Resolves a file id to a download path.
  *
  * @throws {TelegramApiError} when Telegram refuses, which includes files over

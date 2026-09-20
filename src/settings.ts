@@ -46,6 +46,21 @@ export interface InboxSettings {
 	fallback: MessageRule;
 }
 
+/** A named place in the vault a bot command can be pointed at. */
+export interface TopicRef {
+	/** Stable id so the settings UI can remove the right row. */
+	id: string;
+	/** What the user types after a command. Matched ignoring case. */
+	code: string;
+	/** Vault path: a folder, or a single note when it ends in `.md`. */
+	path: string;
+}
+
+export interface CommandsSettings {
+	/** Named folders and notes the commands can be limited to. */
+	topics: TopicRef[];
+}
+
 export interface IntakeSettings {
 	/** Whether the plugin is listening for messages. */
 	enabled: boolean;
@@ -65,6 +80,7 @@ export interface MsxdPluginSettings {
 	telegram: TelegramSettings;
 	inbox: InboxSettings;
 	intake: IntakeSettings;
+	commands: CommandsSettings;
 }
 
 export function createFallbackRule(): MessageRule {
@@ -94,6 +110,9 @@ export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 		offset: 0,
 		reaction: '',
 	},
+	commands: {
+		topics: [],
+	},
 };
 
 /**
@@ -122,6 +141,7 @@ export function mergeSettings(data: unknown): MsxdPluginSettings {
 					? intake.reaction
 					: '',
 		},
+		commands: sanitizeCommands(stored.commands),
 	};
 }
 
@@ -140,7 +160,7 @@ export function isChatAllowed(
 
 export function createRule(): MessageRule {
 	return {
-		id: createRuleId(),
+		id: createId(),
 		filter: '{{all}}',
 		path: DEFAULT_INBOX_FOLDER,
 		mediaPath: '',
@@ -154,7 +174,28 @@ export function isFallbackRule(rule: MessageRule): boolean {
 	return rule.id === FALLBACK_RULE_ID;
 }
 
-function createRuleId(): string {
+export function createTopic(): TopicRef {
+	return { id: createId(), code: '', path: '' };
+}
+
+/**
+ * The topic a command named, or null when no topic carries that code.
+ * Codes are typed on a phone, so the match ignores case and stray spaces.
+ */
+export function findTopic(
+	settings: MsxdPluginSettings,
+	code: string,
+): TopicRef | null {
+	const wanted = code.trim().toLowerCase();
+	if (wanted.length === 0) return null;
+	return (
+		settings.commands.topics.find(
+			(topic) => topic.code.trim().toLowerCase() === wanted,
+		) ?? null
+	);
+}
+
+function createId(): string {
 	const random = Math.random().toString(36).slice(2, 8);
 	return `${Date.now().toString(36)}-${random}`;
 }
@@ -247,7 +288,7 @@ function sanitizeRule(
 		id:
 			typeof rule.id === 'string' && rule.id.length > 0
 				? rule.id
-				: createRuleId(),
+				: createId(),
 		filter: asString(rule.filter, defaults.filter),
 		path: asString(rule.path, defaults.path),
 		mediaPath: asString(rule.mediaPath, defaults.mediaPath),
@@ -261,4 +302,33 @@ function sanitizeRule(
 
 function asString(value: unknown, fallback: string): string {
 	return typeof value === 'string' ? value : fallback;
+}
+
+/** Reads the commands section, dropping topics `data.json` cannot supply. */
+function sanitizeCommands(value: unknown): CommandsSettings {
+	const stored = (value ?? {}) as Record<string, unknown>;
+	return { topics: sanitizeTopics(stored.topics) };
+}
+
+function sanitizeTopics(value: unknown): TopicRef[] {
+	if (!Array.isArray(value)) return [];
+	const topics: TopicRef[] = [];
+	const seen = new Set<string>();
+
+	for (const entry of value) {
+		if (typeof entry !== 'object' || entry === null) continue;
+		const topic = entry as Partial<TopicRef>;
+		const id =
+			typeof topic.id === 'string' && topic.id.length > 0
+				? topic.id
+				: createId();
+		if (seen.has(id)) continue;
+		seen.add(id);
+		topics.push({
+			id,
+			code: asString(topic.code, '').trim(),
+			path: asString(topic.path, '').trim(),
+		});
+	}
+	return topics;
 }

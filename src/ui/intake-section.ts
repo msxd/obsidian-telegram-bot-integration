@@ -90,10 +90,16 @@ export class IntakeSection implements SettingsSection {
 
 			const filed = intake.getFiledCount();
 			const skipped = intake.getSkippedCount();
-			if (filed > 0 || skipped > 0) {
+			const answered = intake.getAnsweredCount();
+			if (filed > 0 || skipped > 0 || answered > 0) {
 				fragment.createDiv({
 					cls: 'msxd-status',
-					text: describeCounts(filed, skipped, intake.getLastPath()),
+					text: describeCounts(
+						filed,
+						skipped,
+						answered,
+						intake.getLastPath(),
+					),
 				});
 			}
 
@@ -157,6 +163,7 @@ function statusModifier(status: IntakeStatus): string {
 function describeCounts(
 	filed: number,
 	skipped: number,
+	answered: number,
 	lastPath: string,
 ): string {
 	const parts = [`Saved ${String(filed)} so far`];
@@ -165,6 +172,9 @@ function describeCounts(
 		parts.push(
 			`${String(skipped)} skipped for having nothing to save`,
 		);
+	}
+	if (answered > 0) {
+		parts.push(`${String(answered)} commands answered`);
 	}
 	return `${parts.join(', ')}.`;
 }

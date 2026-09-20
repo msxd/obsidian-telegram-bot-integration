@@ -1,4 +1,5 @@
 import { App, Notice, TFile } from 'obsidian';
+import { CommandService } from '../commands/service';
 import { saveAttachment } from '../inbox/media';
 import { IncomingMessage } from '../inbox/message';
 import { resolveTarget, RoutingTarget } from '../inbox/routing';
@@ -40,6 +41,7 @@ export type IntakeStatus =
  */
 export class IntakeService {
 	private readonly plugin: MSXDAllInOnePlugin;
+	private readonly commands: CommandService;
 	private readonly listeners = new Set<() => void>();
 	/** Chats seen while listening, newest first. Feeds the allowlist picker. */
 	private readonly seenChats: ChatRef[] = [];
@@ -48,6 +50,7 @@ export class IntakeService {
 	private status: IntakeStatus = { kind: 'stopped' };
 	private filed = 0;
 	private skipped = 0;
+	private answered = 0;
 	private lastPath = '';
 	private pendingTimeout: number | null = null;
 	private pendingResolve: (() => void) | null = null;
@@ -56,6 +59,7 @@ export class IntakeService {
 
 	constructor(plugin: MSXDAllInOnePlugin) {
 		this.plugin = plugin;
+		this.commands = new CommandService(plugin);
 	}
 
 	isRunning(): boolean {
@@ -72,6 +76,10 @@ export class IntakeService {
 
 	getSkippedCount(): number {
 		return this.skipped;
+	}
+
+	getAnsweredCount(): number {
+		return this.answered;
 	}
 
 	getLastPath(): string {
@@ -167,6 +175,12 @@ export class IntakeService {
 		// who the allowlist picker needs to offer.
 		this.rememberChat(message.chat);
 		if (!isChatAllowed(this.plugin.settings, message.chat.id)) return;
+
+		// A command is answered in the chat instead of being filed as a note.
+		if (await this.commands.handle(message)) {
+			this.answered++;
+			return;
+		}
 
 		const target = resolveTarget(this.plugin.settings.inbox, message);
 		try {
