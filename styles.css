@@ -16,18 +16,31 @@
 	word-break: break-all;
 }
 
-.msxd-rule-modal .setting-item-control {
-	flex-grow: 1;
+/*
+ * Rule fields hold long paths and templates, so the label and description sit
+ * above the input and the input gets the full width of the modal. Only here:
+ * the settings tab has short fields that read better on one line.
+ */
+.msxd-rule-modal .setting-item {
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--size-2-2);
 }
 
-.msxd-rule-modal .setting-item-control input[type='text'] {
+.msxd-rule-modal .setting-item-info {
+	margin-right: 0;
+}
+
+.msxd-rule-modal .setting-item-control {
+	width: 100%;
+	/* Keeps the buttons and the toggle on the right, where they belong. */
+	justify-content: flex-end;
+}
+
+.msxd-rule-modal .setting-item-control input[type='text'],
+.msxd-rule-modal .setting-item-control textarea {
 	width: 100%;
 	font-family: var(--font-monospace);
-}
-
-/* Template fields hold long strings, so they get the full width of the row. */
-.msxd-template-setting .setting-item-control {
-	flex-grow: 1;
 }
 
 .msxd-template-input {
