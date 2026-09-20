@@ -173,7 +173,7 @@ export class IntakeService {
 			const links = await this.saveAttachments(message, target);
 			await writeMessage(this.plugin.app.vault, target, message, {
 				links,
-				separate: this.plugin.settings.inbox.separateMessages,
+				separate: target.separate,
 			});
 			this.filed++;
 			this.lastPath = target.path;

@@ -3,7 +3,12 @@ import { describeFilter, matchesFilter, parseFilter } from '../inbox/filter';
 import { IncomingMessage } from '../inbox/message';
 import { previewRuleMediaFolder, previewRulePath } from '../inbox/routing';
 import { createSampleMessage } from '../inbox/sample';
-import { InboxSettings, MessageRule } from '../settings';
+import {
+	DEFAULT_NOTE_NAME,
+	InboxSettings,
+	isFallbackRule,
+	MessageRule,
+} from '../settings';
 
 const FILTERS: readonly (readonly [string, string])[] = [
 	['{{all}}', 'every message'],
@@ -55,20 +60,28 @@ export class RuleModal extends Modal {
 		const { contentEl } = this;
 		contentEl.addClass('msxd-rule-modal');
 
-		new Setting(contentEl)
-			.setName('Filter')
-			.setDesc('Which messages this rule claims.')
-			.addText((text) => {
-				text.setPlaceholder('{{all}}')
-					.setValue(this.draft.filter)
-					.onChange((value) => {
-						this.draft.filter = value;
-						this.refresh();
-					});
+		// The default rule claims whatever is left over, so it has no filter.
+		if (!isFallbackRule(this.draft)) {
+			new Setting(contentEl)
+				.setName('Filter')
+				.setDesc('Which messages this rule claims.')
+				.addText((text) => {
+					text.setPlaceholder('{{all}}')
+						.setValue(this.draft.filter)
+						.onChange((value) => {
+							this.draft.filter = value;
+							this.refresh();
+						});
+				});
+			this.filterErrorEl = contentEl.createDiv({
+				cls: 'msxd-status is-error',
 			});
-		this.filterErrorEl = contentEl.createDiv({
-			cls: 'msxd-status is-error',
-		});
+		} else {
+			contentEl.createDiv({
+				cls: 'msxd-status',
+				text: 'Claims every message no other rule took. It is always last and cannot be removed.',
+			});
+		}
 
 		new Setting(contentEl)
 			.setName('Path')
@@ -101,6 +114,21 @@ export class RuleModal extends Modal {
 			});
 
 		new Setting(contentEl)
+			.setName('Note name')
+			.setDesc(
+				'Used when the path above points at a folder. Leave empty to use the default rule\u2019s.',
+			)
+			.addTextArea((text) => {
+				text.inputEl.addClass('msxd-template-input');
+				text.setPlaceholder(DEFAULT_NOTE_NAME)
+					.setValue(this.draft.noteName)
+					.onChange((value) => {
+						this.draft.noteName = value;
+						this.refresh();
+					});
+			});
+
+		new Setting(contentEl)
 			.setName('Heading')
 			.setDesc('Written before the message. Leave empty for none.')
 			.addText((text) => {
@@ -109,6 +137,17 @@ export class RuleModal extends Modal {
 					.onChange((value) => {
 						this.draft.heading = value;
 					});
+			});
+
+		new Setting(contentEl)
+			.setName('Separate messages')
+			.setDesc(
+				'Put a horizontal rule before a message added to a note that already has content.',
+			)
+			.addToggle((toggle) => {
+				toggle.setValue(this.draft.separate).onChange((value) => {
+					this.draft.separate = value;
+				});
 			});
 
 		this.buildPreview(contentEl);
@@ -171,7 +210,8 @@ export class RuleModal extends Modal {
 		this.saveButton?.setDisabled(!parsed.ok);
 
 		const matchEl = this.matchEl;
-		if (matchEl !== null) {
+		// The default rule takes whatever is left, so matching says nothing.
+		if (matchEl !== null && !isFallbackRule(this.draft)) {
 			const matches = parsed.ok && matchesFilter(parsed.filter, this.sample);
 			matchEl.setText(
 				parsed.ok

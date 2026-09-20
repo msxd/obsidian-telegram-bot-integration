@@ -1,15 +1,7 @@
 import { Setting, SettingGroup } from 'obsidian';
 import { describeFilter, parseFilter } from '../inbox/filter';
 import type MSXDAllInOnePlugin from '../main';
-import {
-	createRule,
-	DEFAULT_HEADING,
-	DEFAULT_INBOX_FOLDER,
-	DEFAULT_MEDIA_FOLDER,
-	DEFAULT_NOTE_NAME,
-	MessageRule,
-} from '../settings';
-import { FolderSuggest } from './folder-suggest';
+import { createRule, MessageRule } from '../settings';
 import { RuleModal } from './rule-modal';
 import { replaceGroups, SettingsSection } from './section';
 
@@ -37,128 +29,19 @@ export class InboxSection implements SettingsSection {
 		const parent = this.parentEl;
 		if (!parent) return;
 		this.groupEls = replaceGroups(parent, this.groupEls, (containerEl) => {
-			this.renderIntake(containerEl);
 			this.renderRules(containerEl);
 		});
 	}
 
-	private renderIntake(containerEl: HTMLElement): void {
-		const { inbox } = this.plugin.settings;
-
-		new SettingGroup(containerEl)
-			.setHeading('Message intake')
-			.addSetting((setting) => {
-				setting
-					.setName('Inbox folder')
-					.setDesc('Where messages go when no rule claims them.')
-					.addText((text) => {
-						text.setPlaceholder(DEFAULT_INBOX_FOLDER).setValue(
-							inbox.folder,
-						);
-						const suggest = new FolderSuggest(
-							this.plugin.app,
-							text.inputEl,
-						);
-						// Picking a suggestion sets the input directly, so it has
-						// to save on its own; typing goes through onChange.
-						suggest.onSelect((folder) => {
-							suggest.setValue(folder.path);
-							suggest.close();
-							inbox.folder = folder.path;
-							void this.plugin.saveSettings();
-						});
-						text.onChange((value) => {
-							inbox.folder = value.trim();
-							void this.plugin.saveSettings();
-						});
-					});
-			})
-			.addSetting((setting) => {
-				setting.settingEl.addClass('msxd-template-setting');
-				setting
-					.setName('Note name')
-					.setDesc(
-						'Used whenever a path points at a folder. Takes the same variables as a rule path.',
-					)
-					.addTextArea((text) => {
-						text.inputEl.addClass('msxd-template-input');
-						text.setPlaceholder(DEFAULT_NOTE_NAME)
-							.setValue(inbox.noteNameTemplate)
-							.onChange((value) => {
-								inbox.noteNameTemplate = value;
-								void this.plugin.saveSettings();
-							});
-					});
-			})
-			.addSetting((setting) => {
-				setting.settingEl.addClass('msxd-template-setting');
-				setting
-					.setName('Default heading')
-					.setDesc(
-						'Written before messages that fall through to the inbox folder. Takes the same variables as a rule path, and line breaks are kept.',
-					)
-					.addTextArea((text) => {
-						text.inputEl.addClass('msxd-template-input');
-						text.setPlaceholder(DEFAULT_HEADING)
-							.setValue(inbox.defaultHeading)
-							.onChange((value) => {
-								inbox.defaultHeading = value;
-								void this.plugin.saveSettings();
-							});
-					});
-			})
-			.addSetting((setting) => {
-				setting
-					.setName('Media folder')
-					.setDesc(
-						'Where attachments go when a rule does not name its own folder.',
-					)
-					.addText((text) => {
-						text.setPlaceholder(DEFAULT_MEDIA_FOLDER).setValue(
-							inbox.mediaFolder,
-						);
-						const suggest = new FolderSuggest(
-							this.plugin.app,
-							text.inputEl,
-						);
-						suggest.onSelect((folder) => {
-							suggest.setValue(folder.path);
-							suggest.close();
-							inbox.mediaFolder = folder.path;
-							void this.plugin.saveSettings();
-						});
-						text.onChange((value) => {
-							inbox.mediaFolder = value.trim();
-							void this.plugin.saveSettings();
-						});
-					});
-			})
-			.addSetting((setting) => {
-				setting
-					.setName('Separate messages')
-					.setDesc(
-						'Put a horizontal rule before a message added to a note that already has content.',
-					)
-					.addToggle((toggle) => {
-						toggle
-							.setValue(inbox.separateMessages)
-							.onChange((value) => {
-								inbox.separateMessages = value;
-								void this.plugin.saveSettings();
-							});
-					});
-			});
-	}
-
 	private renderRules(containerEl: HTMLElement): void {
-		const { rules } = this.plugin.settings.inbox;
+		const { inbox } = this.plugin.settings;
 		const group = new SettingGroup(containerEl).setHeading('Rules');
 
 		group.addSetting((setting) => {
 			setting
 				.setName('Routing rules')
 				.setDesc(
-					'Checked top to bottom, and the first match wins. A message no rule claims goes to the inbox folder.',
+					'Checked top to bottom, and the first match wins. Anything no rule claims goes to the last one, which cannot be removed.',
 				)
 				.addButton((button) => {
 					button
@@ -170,10 +53,14 @@ export class InboxSection implements SettingsSection {
 				});
 		});
 
-		rules.forEach((rule, index) => {
+		inbox.rules.forEach((rule, index) => {
 			group.addSetting((setting) => {
 				this.buildRuleSetting(setting, rule, index);
 			});
+		});
+
+		group.addSetting((setting) => {
+			this.buildFallbackSetting(setting);
 		});
 	}
 
@@ -187,23 +74,7 @@ export class InboxSection implements SettingsSection {
 
 		setting
 			.setName(parsed.ok ? describeFilter(parsed.filter) : 'Broken filter')
-			.setDesc(
-				createFragment((fragment) => {
-					fragment.createDiv({
-						cls: 'msxd-rule-path',
-						text:
-							rule.path.length > 0
-								? rule.path
-								: 'No path set, messages would go to the inbox folder.',
-					});
-					if (!parsed.ok) {
-						fragment.createDiv({
-							cls: 'msxd-status is-error',
-							text: parsed.error,
-						});
-					}
-				}),
-			);
+			.setDesc(describeRule(rule, parsed.ok ? '' : parsed.error));
 
 		setting.addExtraButton((button) => {
 			button
@@ -246,6 +117,22 @@ export class InboxSection implements SettingsSection {
 		});
 	}
 
+	/** The last row: no filter to show, and no way to move or remove it. */
+	private buildFallbackSetting(setting: Setting): void {
+		const { fallback } = this.plugin.settings.inbox;
+		setting
+			.setName('Everything else')
+			.setDesc(describeRule(fallback, ''))
+			.addExtraButton((button) => {
+				button
+					.setIcon('pencil')
+					.setTooltip('Edit the default rule')
+					.onClick(() => {
+						this.editRule(fallback);
+					});
+			});
+	}
+
 	private addRule(): void {
 		const { inbox } = this.plugin.settings;
 		new RuleModal(
@@ -263,8 +150,14 @@ export class InboxSection implements SettingsSection {
 
 	private editRule(rule: MessageRule): void {
 		const { inbox } = this.plugin.settings;
-		new RuleModal(this.plugin.app, inbox, rule, 'Edit rule', (saved) => {
+		const title =
+			rule.id === inbox.fallback.id ? 'Default rule' : 'Edit rule';
+		new RuleModal(this.plugin.app, inbox, rule, title, (saved) => {
 			void this.update(() => {
+				if (saved.id === inbox.fallback.id) {
+					inbox.fallback = saved;
+					return;
+				}
 				const index = inbox.rules.findIndex(
 					(item) => item.id === saved.id,
 				);
@@ -284,15 +177,28 @@ export class InboxSection implements SettingsSection {
 		});
 	}
 
-	/**
-	 * Applies a change to the rule list, persists it and redraws the section.
-	 *
-	 * Only for changes that alter the list itself. Text fields save without a
-	 * redraw, which would rebuild the input and drop focus on every keystroke.
-	 */
+	/** Applies a change to the rules, persists it and redraws the section. */
 	private async update(change: () => void): Promise<void> {
 		change();
 		await this.plugin.saveSettings();
 		this.renderSection();
 	}
+}
+
+function describeRule(rule: MessageRule, error: string): DocumentFragment {
+	return createFragment((fragment) => {
+		fragment.createDiv({
+			cls: 'msxd-rule-path',
+			text:
+				rule.path.length > 0
+					? rule.path
+					: 'No path set, messages would go to the default rule.',
+		});
+		if (rule.separate) {
+			fragment.createDiv({ text: 'Separated by a horizontal rule' });
+		}
+		if (error.length > 0) {
+			fragment.createDiv({ cls: 'msxd-status is-error', text: error });
+		}
+	});
 }

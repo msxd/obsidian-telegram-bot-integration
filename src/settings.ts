@@ -6,6 +6,8 @@ export const DEFAULT_MEDIA_FOLDER = '_tg_inbox_/media';
 export const DEFAULT_HEADING = '## {{messageTime:HH:mm}}';
 export const DEFAULT_NOTE_NAME =
 	'{{messageDate:YYYY-MM-DD}} {{messageTime:HHmmss}}';
+/** Id of the rule that catches whatever no other rule claimed. */
+export const FALLBACK_RULE_ID = 'fallback';
 
 export interface TelegramSettings {
 	/** Bot token from @BotFather. Stored as plain text in the plugin's data.json. */
@@ -16,7 +18,7 @@ export interface TelegramSettings {
 	allowedChats: ChatRef[];
 }
 
-/** One routing rule: which messages it claims, and where they go. */
+/** One routing rule: which messages it claims, and where and how they are saved. */
 export interface MessageRule {
 	/** Stable id so the settings UI can reorder and remove rules. */
 	id: string;
@@ -24,25 +26,24 @@ export interface MessageRule {
 	filter: string;
 	/** Path template. Ending in `.md` means a note, anything else means a folder. */
 	path: string;
-	/** Folder template for attachments. Empty falls back to the inbox media folder. */
+	/** Folder template for attachments. Empty falls back to the default rule. */
 	mediaPath: string;
 	/** Template for the heading written before the message body. */
 	heading: string;
+	/** Note name template, used when the path points at a folder. */
+	noteName: string;
+	/** Put a horizontal rule before a message appended to an existing note. */
+	separate: boolean;
 }
 
 export interface InboxSettings {
-	/** Where messages go when no rule claims them. */
-	folder: string;
-	/** Note name template used whenever a path points at a folder. */
-	noteNameTemplate: string;
-	/** Heading for messages that fall through to the inbox. */
-	defaultHeading: string;
-	/** Put a horizontal rule before each message appended to an existing note. */
-	separateMessages: boolean;
-	/** Where attachments go when a rule does not say otherwise. */
-	mediaFolder: string;
-	/** Order is priority: the first matching rule wins. */
+	/** Checked top to bottom; the first match wins. */
 	rules: MessageRule[];
+	/**
+	 * Claims everything the rules did not. Always last, cannot be removed, and
+	 * its filter is fixed, so a message can never end up with nowhere to go.
+	 */
+	fallback: MessageRule;
 }
 
 export interface IntakeSettings {
@@ -66,6 +67,18 @@ export interface MsxdPluginSettings {
 	intake: IntakeSettings;
 }
 
+export function createFallbackRule(): MessageRule {
+	return {
+		id: FALLBACK_RULE_ID,
+		filter: '{{all}}',
+		path: DEFAULT_INBOX_FOLDER,
+		mediaPath: DEFAULT_MEDIA_FOLDER,
+		heading: DEFAULT_HEADING,
+		noteName: DEFAULT_NOTE_NAME,
+		separate: false,
+	};
+}
+
 export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 	telegram: {
 		botToken: '',
@@ -73,12 +86,8 @@ export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 		allowedChats: [],
 	},
 	inbox: {
-		folder: DEFAULT_INBOX_FOLDER,
-		noteNameTemplate: DEFAULT_NOTE_NAME,
-		defaultHeading: DEFAULT_HEADING,
-		separateMessages: false,
-		mediaFolder: DEFAULT_MEDIA_FOLDER,
 		rules: [],
+		fallback: createFallbackRule(),
 	},
 	intake: {
 		enabled: false,
@@ -94,24 +103,13 @@ export const DEFAULT_SETTINGS: MsxdPluginSettings = {
 export function mergeSettings(data: unknown): MsxdPluginSettings {
 	const stored = (data ?? {}) as Partial<MsxdPluginSettings>;
 	const telegram = { ...DEFAULT_SETTINGS.telegram, ...stored.telegram };
-	const inbox = { ...DEFAULT_SETTINGS.inbox, ...stored.inbox };
 	const intake = { ...DEFAULT_SETTINGS.intake, ...stored.intake };
 	return {
 		telegram: {
 			...telegram,
 			allowedChats: sanitizeChats(telegram.allowedChats),
 		},
-		inbox: {
-			folder: asString(inbox.folder, DEFAULT_INBOX_FOLDER),
-			noteNameTemplate: asString(
-				inbox.noteNameTemplate,
-				DEFAULT_NOTE_NAME,
-			),
-			defaultHeading: asString(inbox.defaultHeading, DEFAULT_HEADING),
-			separateMessages: inbox.separateMessages === true,
-			mediaFolder: asString(inbox.mediaFolder, DEFAULT_MEDIA_FOLDER),
-			rules: sanitizeRules(inbox.rules),
-		},
+		inbox: sanitizeInbox(stored.inbox),
 		intake: {
 			enabled: intake.enabled === true,
 			offset:
@@ -147,12 +145,53 @@ export function createRule(): MessageRule {
 		path: DEFAULT_INBOX_FOLDER,
 		mediaPath: '',
 		heading: DEFAULT_HEADING,
+		noteName: '',
+		separate: false,
 	};
+}
+
+export function isFallbackRule(rule: MessageRule): boolean {
+	return rule.id === FALLBACK_RULE_ID;
 }
 
 function createRuleId(): string {
 	const random = Math.random().toString(36).slice(2, 8);
 	return `${Date.now().toString(36)}-${random}`;
+}
+
+/**
+ * Reads the inbox section, carrying over the layout that kept the fallback in
+ * loose fields (`folder`, `defaultHeading`, `mediaFolder`, `noteNameTemplate`,
+ * `separateMessages`) before it became a rule of its own.
+ */
+function sanitizeInbox(value: unknown): InboxSettings {
+	const stored = (value ?? {}) as Record<string, unknown>;
+	// Separation used to be one switch for every rule; keep it per rule now.
+	const legacySeparate = stored.separateMessages === true;
+	return {
+		rules: sanitizeRules(stored.rules, legacySeparate),
+		fallback: sanitizeFallback(stored, legacySeparate),
+	};
+}
+
+function sanitizeFallback(
+	stored: Record<string, unknown>,
+	legacySeparate: boolean,
+): MessageRule {
+	const defaults = createFallbackRule();
+	if (typeof stored.fallback === 'object' && stored.fallback !== null) {
+		const rule = sanitizeRule(stored.fallback, legacySeparate, defaults);
+		// It claims everything by definition, whatever data.json happens to say.
+		return { ...rule, id: FALLBACK_RULE_ID, filter: defaults.filter };
+	}
+	return {
+		...defaults,
+		path: asString(stored.folder, defaults.path),
+		mediaPath: asString(stored.mediaFolder, defaults.mediaPath),
+		heading: asString(stored.defaultHeading, defaults.heading),
+		noteName: asString(stored.noteNameTemplate, defaults.noteName),
+		separate: legacySeparate,
+	};
 }
 
 /** data.json is user editable, so drop anything that is not a usable entry. */
@@ -181,29 +220,43 @@ function sanitizeChats(value: unknown): ChatRef[] {
 	return chats;
 }
 
-function sanitizeRules(value: unknown): MessageRule[] {
+function sanitizeRules(value: unknown, legacySeparate: boolean): MessageRule[] {
 	if (!Array.isArray(value)) return [];
 	const rules: MessageRule[] = [];
 	const seen = new Set<string>();
+	const blank = { ...createRule(), path: '', heading: '' };
+
 	for (const entry of value) {
 		if (typeof entry !== 'object' || entry === null) continue;
-		const rule = entry as Partial<MessageRule>;
-		const id =
-			typeof rule.id === 'string' &&
-			rule.id.length > 0 &&
-			!seen.has(rule.id)
-				? rule.id
-				: createRuleId();
-		seen.add(id);
-		rules.push({
-			id,
-			filter: asString(rule.filter, ''),
-			path: asString(rule.path, ''),
-			mediaPath: asString(rule.mediaPath, ''),
-			heading: asString(rule.heading, ''),
-		});
+		const rule = sanitizeRule(entry, legacySeparate, blank);
+		// The fallback lives in its own field; a stray copy here would double it.
+		if (rule.id === FALLBACK_RULE_ID || seen.has(rule.id)) continue;
+		seen.add(rule.id);
+		rules.push(rule);
 	}
 	return rules;
+}
+
+function sanitizeRule(
+	value: unknown,
+	legacySeparate: boolean,
+	defaults: MessageRule,
+): MessageRule {
+	const rule = (value ?? {}) as Partial<MessageRule>;
+	return {
+		id:
+			typeof rule.id === 'string' && rule.id.length > 0
+				? rule.id
+				: createRuleId(),
+		filter: asString(rule.filter, defaults.filter),
+		path: asString(rule.path, defaults.path),
+		mediaPath: asString(rule.mediaPath, defaults.mediaPath),
+		heading: asString(rule.heading, defaults.heading),
+		noteName: asString(rule.noteName, defaults.noteName),
+		// Rules saved before separation was per-rule inherit the old switch.
+		separate:
+			typeof rule.separate === 'boolean' ? rule.separate : legacySeparate,
+	};
 }
 
 function asString(value: unknown, fallback: string): string {

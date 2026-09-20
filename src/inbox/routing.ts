@@ -2,6 +2,7 @@ import { normalizePath } from 'obsidian';
 import {
 	DEFAULT_INBOX_FOLDER,
 	DEFAULT_MEDIA_FOLDER,
+	DEFAULT_NOTE_NAME,
 	InboxSettings,
 	MessageRule,
 } from '../settings';
@@ -18,56 +19,38 @@ export interface RoutingTarget {
 	mediaFolder: string;
 	/** Text written before the message body. */
 	heading: string;
-	/** The rule that claimed the message, or null when it fell through to the inbox. */
-	rule: MessageRule | null;
+	/** Whether to put a horizontal rule above a message appended to a note. */
+	separate: boolean;
+	/** The rule that claimed the message, possibly the fallback one. */
+	rule: MessageRule;
 }
 
 /**
  * Decides where a message goes. Rules are tried top to bottom and the first
- * match wins; a message no rule claims lands in the inbox rather than nowhere.
+ * match wins; whatever none of them claims belongs to the fallback rule, so a
+ * message always has somewhere to land.
  */
 export function resolveTarget(
 	settings: InboxSettings,
 	message: IncomingMessage,
 ): RoutingTarget {
-	const rule = findRule(settings.rules, message);
-	const heading = rule !== null ? rule.heading : settings.defaultHeading;
-	const pathTemplate = rule !== null ? rule.path : settings.folder;
+	const rule = findRule(settings.rules, message) ?? settings.fallback;
 	return {
-		path: buildNotePath(pathTemplate, settings, message),
-		mediaFolder: buildMediaFolder(rule?.mediaPath ?? '', settings, message),
-		heading: renderTextTemplate(heading, message),
+		path: buildNotePath(rule, settings, message),
+		mediaFolder: buildMediaFolder(rule, settings, message),
+		heading: renderTextTemplate(rule.heading, message),
+		separate: rule.separate,
 		rule,
 	};
 }
 
-/**
- * Attachments always land in a folder: the file itself dictates the extension,
- * so there is nothing for a note-style path to name. An empty rule template
- * falls back to the shared media folder.
- */
-function buildMediaFolder(
-	template: string,
-	settings: InboxSettings,
-	message: IncomingMessage,
-): string {
-	const rendered = cleanPath(renderPathTemplate(template, message));
-	if (rendered.length > 0) return normalizePath(rendered);
-
-	const shared = cleanPath(renderPathTemplate(settings.mediaFolder, message));
-	return normalizePath(shared.length > 0 ? shared : DEFAULT_MEDIA_FOLDER);
-}
-
-/**
- * The path this rule would produce, whether or not its filter matches. Settings
- * use it to preview a rule against a sample message while it is being edited.
- */
+/** The path this rule would produce, whether or not its filter matches. */
 export function previewRulePath(
 	settings: InboxSettings,
 	rule: MessageRule,
 	message: IncomingMessage,
 ): string {
-	return buildNotePath(rule.path, settings, message);
+	return buildNotePath(rule, settings, message);
 }
 
 /** The media folder this rule would use, for the same preview. */
@@ -76,7 +59,7 @@ export function previewRuleMediaFolder(
 	rule: MessageRule,
 	message: IncomingMessage,
 ): string {
-	return buildMediaFolder(rule.mediaPath, settings, message);
+	return buildMediaFolder(rule, settings, message);
 }
 
 function findRule(
@@ -94,20 +77,21 @@ function findRule(
 /**
  * A template ending in `.md` names the note itself, so several messages can
  * collect in one file. Anything else is a folder, and the note name comes from
- * the shared note name template.
+ * the rule's own template.
  */
 function buildNotePath(
-	template: string,
+	rule: MessageRule,
 	settings: InboxSettings,
 	message: IncomingMessage,
 ): string {
-	const rendered = cleanPath(renderPathTemplate(template, message));
+	const rendered = cleanPath(renderPathTemplate(rule.path, message));
 	if (rendered.toLowerCase().endsWith(NOTE_EXTENSION)) {
 		return normalizePath(rendered);
 	}
 
-	const folder = rendered.length > 0 ? rendered : fallbackFolder(settings, message);
-	const name = buildNoteName(settings, message);
+	const folder =
+		rendered.length > 0 ? rendered : fallbackFolder(settings, message);
+	const name = buildNoteName(rule, settings, message);
 	return normalizePath(folder.length > 0 ? `${folder}/${name}` : name);
 }
 
@@ -116,16 +100,43 @@ function fallbackFolder(
 	settings: InboxSettings,
 	message: IncomingMessage,
 ): string {
-	const inbox = cleanPath(renderPathTemplate(settings.folder, message));
-	return inbox.length > 0 ? inbox : DEFAULT_INBOX_FOLDER;
+	const folder = cleanPath(
+		renderPathTemplate(settings.fallback.path, message),
+	);
+	return folder.length > 0 ? folder : DEFAULT_INBOX_FOLDER;
 }
 
-function buildNoteName(
+/**
+ * Attachments always land in a folder: the file itself dictates the extension,
+ * so there is nothing for a note-style path to name. An empty rule template
+ * falls back to the one on the fallback rule.
+ */
+function buildMediaFolder(
+	rule: MessageRule,
 	settings: InboxSettings,
 	message: IncomingMessage,
 ): string {
+	const rendered = cleanPath(renderPathTemplate(rule.mediaPath, message));
+	if (rendered.length > 0) return normalizePath(rendered);
+
+	const shared = cleanPath(
+		renderPathTemplate(settings.fallback.mediaPath, message),
+	);
+	return normalizePath(shared.length > 0 ? shared : DEFAULT_MEDIA_FOLDER);
+}
+
+function buildNoteName(
+	rule: MessageRule,
+	settings: InboxSettings,
+	message: IncomingMessage,
+): string {
+	const own = rule.noteName.length > 0 ? rule.noteName : '';
+	const shared =
+		settings.fallback.noteName.length > 0
+			? settings.fallback.noteName
+			: DEFAULT_NOTE_NAME;
 	const rendered = cleanPath(
-		renderPathTemplate(settings.noteNameTemplate, message),
+		renderPathTemplate(own.length > 0 ? own : shared, message),
 	);
 	// The message id is the one thing always available to name a note after.
 	const name = rendered.length > 0 ? rendered : String(message.messageId);
